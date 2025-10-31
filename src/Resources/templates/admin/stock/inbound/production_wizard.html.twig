@@ -1,0 +1,348 @@
+{% extends '@EasyAdmin/layout.html.twig' %}
+
+{% block page_title %}生产入库{% endblock %}
+
+{% block content_title %}生产入库{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .batch-item {
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .batch-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .remove-item-btn {
+            color: #dc3545;
+            cursor: pointer;
+        }
+        .select2-container .select2-selection--single {
+            height: 38px;
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 36px;
+            padding-left: 12px;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px;
+        }
+    </style>
+{% endblock %}
+
+{% block main %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">生产入库单</h3>
+                    <div class="card-tools">
+                        <a href="{{ path('admin_stock_inbound_wizard') }}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-arrow-left"></i> 返回
+                        </a>
+                    </div>
+                </div>
+                
+                <form method="post" id="inboundForm">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="reference_no">生产单号 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="reference_no" name="reference_no" required
+                                           placeholder="输入生产单号" value="{{ app.request.get('reference_no', '') }}">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="operator">操作人</label>
+                                    <input type="text" class="form-control" id="operator" name="operator"
+                                           value="{{ app.user ? app.user.userIdentifier : '' }}" readonly>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="location_id">仓库位置</label>
+                                    <input type="text" class="form-control" id="location_id" name="location_id"
+                                           placeholder="输入仓库位置" value="{{ app.request.get('location_id', '') }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label for="notes">备注</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="2"
+                                              placeholder="输入备注信息">{{ app.request.get('notes', '') }}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="form-group">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5>入库商品明细</h5>
+                                <button type="button" class="btn btn-success btn-sm" id="addItemBtn">
+                                    <i class="fas fa-plus"></i> 添加商品
+                                </button>
+                            </div>
+                            
+                            <div id="itemsContainer">
+                                <!-- 商品明细项目将通过JavaScript动态添加 -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> 提交入库单
+                                </button>
+                                <button type="button" class="btn btn-secondary ml-2" id="resetBtn">
+                                    <i class="fas fa-redo"></i> 重置表单
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 商品明细模板 -->
+<div id="itemTemplate" style="display: none;">
+    <div class="batch-item" data-index="">
+        <div class="batch-item-header">
+            <h6>商品 <span class="item-number"></span></h6>
+            <span class="remove-item-btn" onclick="removeItem(this)">
+                <i class="fas fa-times"></i> 删除
+            </span>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>选择SKU <span class="text-danger">*</span></label>
+                    <select class="form-control sku-select" name="items[][sku_id]" required>
+                        <option value="">请选择SKU</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>批次号</label>
+                    <input type="text" class="form-control" name="items[][batch_no]" 
+                           placeholder="留空自动生成" value="{{ generatedBatchNo }}">
+                    <small class="form-text text-muted">留空时系统将自动生成批次号</small>
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label>数量 <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" name="items[][quantity]" required min="1" placeholder="数量">
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label>单价 <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" name="items[][unit_cost]" required step="0.01" min="0" placeholder="单价">
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label>质量等级</label>
+                    <select class="form-control" name="items[][quality_level]">
+                        <option value="S">S级</option>
+                        <option value="A" selected>A级</option>
+                        <option value="B">B级</option>
+                        <option value="C">C级</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label>生产日期</label>
+                    <input type="date" class="form-control" name="items[][production_date]">
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label>过期日期</label>
+                    <input type="date" class="form-control" name="items[][expiry_date]">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        let itemIndex = 0;
+        let skuOptions = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 加载SKU数据
+            loadSkuOptions().then(() => {
+                // 添加第一个商品项目
+                addItem();
+            });
+            
+            // 绑定事件
+            document.getElementById('addItemBtn').addEventListener('click', addItem);
+            document.getElementById('resetBtn').addEventListener('click', resetForm);
+        });
+        
+        async function loadSkuOptions() {
+            try {
+                const response = await fetch('{{ path('admin_stock_inbound_wizard_api_skus') }}');
+                const data = await response.json();
+                skuOptions = data;
+            } catch (error) {
+                console.error('加载SKU数据失败:', error);
+                alert('加载SKU数据失败，请刷新页面重试');
+            }
+        }
+        
+        function addItem() {
+            const container = document.getElementById('itemsContainer');
+            const template = document.getElementById('itemTemplate');
+            const clone = template.cloneNode(true);
+            
+            itemIndex++;
+            clone.id = '';
+            clone.style.display = 'block';
+            clone.setAttribute('data-index', itemIndex);
+            clone.querySelector('.item-number').textContent = itemIndex;
+            
+            // 更新表单字段名称
+            const inputs = clone.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                const name = input.getAttribute('name');
+                if (name) {
+                    input.setAttribute('name', name.replace('[]', '[' + itemIndex + ']'));
+                }
+            });
+            
+            container.appendChild(clone);
+            
+            // 初始化新添加的SKU选择器
+            initializeSkuSelect(clone);
+        }
+        
+        function initializeSkuSelect(container) {
+            const skuSelect = container.querySelector('.sku-select');
+            
+            // 清空现有选项并添加默认选项
+            skuSelect.innerHTML = '<option value="">请选择SKU</option>';
+            
+            // 添加SKU选项
+            skuOptions.forEach(sku => {
+                const option = document.createElement('option');
+                option.value = sku.id;
+                option.textContent = sku.text;
+                option.setAttribute('data-gtin', sku.gtin || '');
+                skuSelect.appendChild(option);
+            });
+            
+            // 初始化Select2
+            $(skuSelect).select2({
+                placeholder: '请选择或搜索SKU',
+                allowClear: true,
+                width: '100%'
+            });
+        }
+        
+        function removeItem(element) {
+            const item = element.closest('.batch-item');
+            const container = document.getElementById('itemsContainer');
+            
+            // 至少保留一个商品项目
+            if (container.children.length > 1) {
+                // 销毁Select2实例
+                const skuSelect = item.querySelector('.sku-select');
+                if ($(skuSelect).hasClass('select2-hidden-accessible')) {
+                    $(skuSelect).select2('destroy');
+                }
+                item.remove();
+                updateItemNumbers();
+            } else {
+                alert('至少需要保留一个商品项目');
+            }
+        }
+        
+        function updateItemNumbers() {
+            const items = document.querySelectorAll('.batch-item');
+            items.forEach((item, index) => {
+                item.querySelector('.item-number').textContent = index + 1;
+            });
+        }
+        
+        function resetForm() {
+            if (confirm('确定要重置表单吗？所有输入的数据将被清除。')) {
+                document.getElementById('inboundForm').reset();
+                
+                // 销毁所有Select2实例
+                $('.sku-select').each(function() {
+                    if ($(this).hasClass('select2-hidden-accessible')) {
+                        $(this).select2('destroy');
+                    }
+                });
+                
+                // 清除所有商品项目并添加一个新的
+                const container = document.getElementById('itemsContainer');
+                container.innerHTML = '';
+                itemIndex = 0;
+                addItem();
+            }
+        }
+        
+        // 表单提交前验证
+        document.getElementById('inboundForm').addEventListener('submit', function(e) {
+            const items = document.querySelectorAll('.batch-item');
+            let hasValidItem = false;
+            
+            items.forEach(item => {
+                const skuId = item.querySelector('select[name*="[sku_id]"]').value.trim();
+                const quantity = item.querySelector('input[name*="[quantity]"]').value.trim();
+                const unitCost = item.querySelector('input[name*="[unit_cost]"]').value.trim();
+                
+                if (skuId && quantity && unitCost) {
+                    hasValidItem = true;
+                }
+            });
+            
+            if (!hasValidItem) {
+                e.preventDefault();
+                alert('请至少填写一个完整的商品项目（SKU、数量、单价为必填项）');
+            }
+        });
+    </script>
+{% endblock %}

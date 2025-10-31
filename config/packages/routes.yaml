@@ -1,0 +1,4 @@
+# 库存管理包路由配置
+stock_manage_controllers:
+    resource: '../../src/Controller/'
+    type: attribute
