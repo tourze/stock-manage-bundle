@@ -32,12 +32,12 @@
     "tourze/doctrine-timestamp-bundle": "1.0.*",
     "tourze/doctrine-user-bundle": "1.0.*",
     "tourze/easy-admin-enum-field-bundle": "1.0.*",
-    "tourze/easy-admin-extra-bundle": "0.1.*",
+    "tourze/easy-admin-extra-bundle": "1.0.*",
     "tourze/easy-admin-menu-bundle": "1.0.*",
     "tourze/enum-extra": "1.*",
     "tourze/json-rpc-core": "1.0.*",
     "tourze/product-core-bundle": "0.0.*",
-    "tourze/product-service-contracts": "0.0.*",
+    "tourze/product-service-contracts": "1.0.*",
     "tourze/symfony-dependency-service-loader": "1.*"
   },
   "require-dev": {
