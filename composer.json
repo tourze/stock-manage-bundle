@@ -34,11 +34,11 @@
     "tourze/easy-admin-enum-field-bundle": "1.0.*",
     "tourze/easy-admin-extra-bundle": "1.0.*",
     "tourze/easy-admin-menu-bundle": "1.0.*",
-    "tourze/enum-extra": "1.*",
+    "tourze/enum-extra": "1.0.*",
     "tourze/json-rpc-core": "1.0.*",
     "tourze/product-core-bundle": "0.0.*",
     "tourze/product-service-contracts": "1.0.*",
-    "tourze/symfony-dependency-service-loader": "1.*"
+    "tourze/symfony-dependency-service-loader": "1.0.*"
   },
   "require-dev": {
     "doctrine/doctrine-fixtures-bundle": "^4.0",
