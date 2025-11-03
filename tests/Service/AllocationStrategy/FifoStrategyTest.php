@@ -122,9 +122,14 @@ class FifoStrategyTest extends TestCase
 
     private function createBatchWithCreateTime(string $createTime): StockBatch
     {
-        $batch = $this->createMock(StockBatch::class);
+        $batch = new StockBatch();
         $createDateTime = new \DateTimeImmutable($createTime);
-        $batch->method('getCreateTime')->willReturn($createDateTime);
+
+        // 使用反射设置私有属性，因为 setCreateTime 是 final 方法
+        $reflection = new \ReflectionClass($batch);
+        $property = $reflection->getProperty('createTime');
+        $property->setAccessible(true);
+        $property->setValue($batch, $createDateTime);
 
         return $batch;
     }

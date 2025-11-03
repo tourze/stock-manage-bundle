@@ -424,7 +424,7 @@ class OutboundServiceTest extends TestCase
             /**
              * @param array<string, mixed> $data
              *
-             * @return array{requestedItems: array<mixed>, allocatedItems: array<mixed>, totalQuantity: int, totalCost: float}
+             * @return non-empty-array<string, mixed>
              */
             public function processSalesOutbound(array $data): array
             {
@@ -450,7 +450,7 @@ class OutboundServiceTest extends TestCase
             /**
              * @param array<string, mixed> $data
              *
-             * @return array{requestedItems: array<mixed>, allocatedItems: array<mixed>, totalQuantity: int, totalCost: float}
+             * @return non-empty-array<string, mixed>
              */
             public function processDamageOutbound(array $data): array
             {
@@ -476,7 +476,7 @@ class OutboundServiceTest extends TestCase
             /**
              * @param array<string, mixed> $data
              *
-             * @return array{requestedItems: array<mixed>, allocatedItems: array<mixed>, totalQuantity: int, totalCost: float}
+             * @return non-empty-array<string, mixed>
              */
             public function processTransferOutbound(array $data): array
             {
@@ -502,7 +502,7 @@ class OutboundServiceTest extends TestCase
             /**
              * @param array<string, mixed> $data
              *
-             * @return array{requestedItems: array<mixed>, allocatedItems: array<mixed>, totalQuantity: int, totalCost: float}
+             * @return non-empty-array<string, mixed>
              */
             public function processPickOutbound(array $data): array
             {
@@ -528,7 +528,7 @@ class OutboundServiceTest extends TestCase
             /**
              * @param array<string, mixed> $data
              *
-             * @return array{requestedItems: array<mixed>, allocatedItems: array<mixed>, totalQuantity: int, totalCost: float}
+             * @return non-empty-array<string, mixed>
              */
             public function processAdjustmentOutbound(array $data): array
             {
