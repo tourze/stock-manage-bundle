@@ -21,7 +21,7 @@ class StockOutbound implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[ORM\Column(type: Types::STRING, length: 30, enumType: StockOutboundType::class, options: ['comment' => '出库类型'])]
     #[Assert\Choice(callback: [StockOutboundType::class, 'cases'], message: '出库类型必须是有效的类型')]

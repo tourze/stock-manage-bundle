@@ -21,7 +21,7 @@ class StockInbound implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[IndexColumn(name: 'idx_inbound_type')]
     #[ORM\Column(type: Types::STRING, length: 30, enumType: StockInboundType::class, options: ['comment' => '入库类型'])]

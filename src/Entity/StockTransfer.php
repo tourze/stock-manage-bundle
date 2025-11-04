@@ -21,7 +21,7 @@ class StockTransfer implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[IndexColumn(name: 'idx_transfer_no')]
     #[ORM\Column(type: Types::STRING, length: 100, unique: true, options: ['comment' => '调拨单号'])]

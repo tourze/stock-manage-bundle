@@ -23,7 +23,7 @@ class StockAdjustment implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键id'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[ORM\Column(type: Types::STRING, length: 50, unique: true, options: ['comment' => '调整单号'])]
     #[Assert\NotBlank(message: '调整单号不能为空')]

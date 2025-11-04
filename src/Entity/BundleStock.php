@@ -26,7 +26,7 @@ class BundleStock implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[ORM\Column(type: Types::STRING, length: 100, unique: true, options: ['comment' => '组合商品编码'])]
     #[Assert\NotBlank(message: '组合商品编码不能为空')]

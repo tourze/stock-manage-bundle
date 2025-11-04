@@ -20,7 +20,7 @@ class StockSnapshot implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[ORM\Column(type: Types::STRING, length: 50, options: ['comment' => '快照号'])]
     #[Assert\NotBlank(message: '快照号不能为空')]

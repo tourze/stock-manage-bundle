@@ -23,7 +23,7 @@ class StockLog implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => 'ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[ORM\Column(type: Types::STRING, enumType: StockChange::class, options: ['comment' => '库存变动类型'])]
     #[Assert\NotNull(message: '库存变动类型不能为空')]

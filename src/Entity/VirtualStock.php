@@ -25,7 +25,7 @@ class VirtualStock implements \Stringable
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER, options: ['comment' => '主键ID'])]
-    private ?int $id = null; // @phpstan-ignore-line property.unusedType (ORM auto-generated)
+    private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: SKU::class)]
     #[ORM\JoinColumn(name: 'sku_id', referencedColumnName: 'id', nullable: true)]
