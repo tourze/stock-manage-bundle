@@ -48,21 +48,48 @@ final class StockCalculatorTest extends TestCase
      */
     private function createStockBatch(array $data): StockBatch
     {
-        $batch = $this->createMock(StockBatch::class);
-        $batch->method('getId')->willReturn($data['id'] ?? 1);
-        $batch->method('getBatchNo')->willReturn($data['batch_no'] ?? 'BATCH001');
-        $batch->method('getSku')->willReturn($data['sku'] ?? $this->createMockSku('SKU001'));
-        $batch->method('getQuantity')->willReturn($data['quantity'] ?? 100);
-        $batch->method('getAvailableQuantity')->willReturn($data['available_quantity'] ?? $data['quantity'] ?? 100);
-        $batch->method('getReservedQuantity')->willReturn($data['reserved_quantity'] ?? 0);
-        $batch->method('getLockedQuantity')->willReturn($data['locked_quantity'] ?? 0);
-        $batch->method('getUnitCost')->willReturn($data['unit_cost'] ?? 10.50);
-        $batch->method('getQualityLevel')->willReturn($data['quality_level'] ?? 'A');
-        $batch->method('getLocationId')->willReturn($data['location_id'] ?? 'WH001');
-        $batch->method('getStatus')->willReturn($data['status'] ?? 'available');
-        $batch->method('getProductionDate')->willReturn($data['production_date'] ?? null);
-        $batch->method('getExpiryDate')->willReturn($data['expiry_date'] ?? null);
-        $batch->method('getCreateTime')->willReturn($data['create_time'] ?? null);
+        /** @var SKU $sku */
+        $sku = $data['sku'] ?? $this->createMockSku('SKU001');
+
+        $batch = new StockBatch();
+
+        // 设置必填属性
+        $batch->setSku($sku);
+        $batch->setBatchNo((string) ($data['batch_no'] ?? 'BATCH001'));
+        $batch->setQuantity((int) ($data['quantity'] ?? 100));
+        $batch->setUnitCost((float) ($data['unit_cost'] ?? 10.50));
+        $batch->setQualityLevel((string) ($data['quality_level'] ?? 'A'));
+        $batch->setLocationId((string) ($data['location_id'] ?? 'WH001'));
+
+        // 使用反射设置 ID（因为 ID 通常由 Doctrine 管理）
+        if (isset($data['id'])) {
+            $reflection = new \ReflectionClass($batch);
+            $idProperty = $reflection->getProperty('id');
+            $idProperty->setValue($batch, $data['id']);
+        }
+
+        // 设置可用数量（默认等于总数量）
+        $batch->setAvailableQuantity((int) ($data['available_quantity'] ?? $data['quantity'] ?? 100));
+
+        // 设置其他可选属性
+        if (isset($data['reserved_quantity'])) {
+            $batch->setReservedQuantity((int) $data['reserved_quantity']);
+        }
+        if (isset($data['locked_quantity'])) {
+            $batch->setLockedQuantity((int) $data['locked_quantity']);
+        }
+        if (isset($data['status'])) {
+            $batch->setStatus((string) $data['status']);
+        }
+        if (isset($data['production_date'])) {
+            $batch->setProductionDate($data['production_date']);
+        }
+        if (isset($data['expiry_date'])) {
+            $batch->setExpiryDate($data['expiry_date']);
+        }
+        if (isset($data['create_time'])) {
+            $batch->setCreateTime($data['create_time']);
+        }
 
         return $batch;
     }
@@ -358,9 +385,7 @@ final class StockCalculatorTest extends TestCase
             'quality_level' => 'B',
             'status' => 'partially_available',
             'location_id' => 'WH002',
-            'production_date' => null,
-            'expiry_date' => null,
-            'create_time' => null,
+            // 不设置 production_date, expiry_date, create_time - 使用默认值
         ]);
 
         $batches = [$batch1, $batch2];
@@ -399,7 +424,8 @@ final class StockCalculatorTest extends TestCase
         $this->assertEquals('WH002', $detail2['locationId']);
         $this->assertNull($detail2['productionDate']);
         $this->assertNull($detail2['expiryDate']);
-        $this->assertNull($detail2['createTime']);
+        // 真实实体构造函数会自动设置 createTime，所以这里不再验证为 null
+        $this->assertNotNull($detail2['createTime']);
     }
 
     public function testGetStockStats(): void
