@@ -14,14 +14,11 @@ use Tourze\StockManageBundle\Exception\InvalidArgumentException;
 use Tourze\StockManageBundle\Exception\InvalidOperationException;
 use Tourze\StockManageBundle\Repository\StockBatchRepository;
 
-/**
- * @phpstan-ignore-next-line complexity.classLike
- */
 class TransferService
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private StockBatchRepository $batchRepository,
+        private readonly StockBatchRepository $batchRepository,
         private OutboundServiceInterface $outboundService,
         private InboundServiceInterface $inboundService,
     ) {

@@ -10,13 +10,10 @@ use Tourze\StockManageBundle\Entity\StockBatch;
 use Tourze\StockManageBundle\Entity\StockSnapshot;
 use Tourze\StockManageBundle\Repository\StockBatchRepository;
 
-/**
- * @phpstan-ignore-next-line complexity.classLike
- */
 class SnapshotService implements SnapshotServiceInterface
 {
     public function __construct(
-        private EntityManagerInterface $entityManager,
+        private readonly EntityManagerInterface $entityManager,
         private StockBatchRepository $batchRepository,
     ) {
     }

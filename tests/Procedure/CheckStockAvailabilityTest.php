@@ -143,7 +143,6 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
     {
         // 使用类型安全的方式传入错误格式数据来测试验证
         $invalidItems = ['invalid'];
-        /** @phpstan-ignore-next-line 故意传递无效数据来测试验证逻辑 */
         $this->procedure->items = $invalidItems;
 
         $this->expectException(InvalidArgumentException::class);
@@ -158,7 +157,6 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         $itemsWithMissingFields = [
             ['productId' => 1, 'quantity' => 5], // missing skuId
         ];
-        /** @phpstan-ignore-next-line 故意传递缺少字段的数据来测试验证逻辑 */
         $this->procedure->items = $itemsWithMissingFields;
 
         $this->expectException(InvalidArgumentException::class);
@@ -173,7 +171,6 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         $itemsWithInvalidFieldType = [
             ['productId' => 1, 'skuId' => 'invalid', 'quantity' => 5],
         ];
-        /** @phpstan-ignore-next-line 故意传递错误类型的数据来测试验证逻辑 */
         $this->procedure->items = $itemsWithInvalidFieldType;
 
         $this->expectException(InvalidArgumentException::class);

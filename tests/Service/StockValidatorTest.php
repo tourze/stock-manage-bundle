@@ -1,6 +1,5 @@
 <?php
 
-/** @phpstan-ignore-next-line symplify.multipleClassLikeInFile */
 declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Tests\Service;
@@ -103,11 +102,9 @@ final class StockValidatorTest extends TestCase
 
     /**
      * @param array<string, mixed> $data
-     * @phpstan-ignore-next-line PreferInterfaceStubTraitRule.createStockBatch
      */
     private function createStockBatchInstance(array $data): StockBatch
     {
-        /** @phpstan-ignore-next-line PreferInterfaceStubTraitRule.createStockBatch */
         return new class($data) extends StockBatch {
             /**
              * @param array<string, mixed> $data

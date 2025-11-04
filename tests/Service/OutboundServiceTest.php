@@ -1,6 +1,5 @@
 <?php
 
-/** @phpstan-ignore-next-line symplify.multipleClassLikeInFile */
 declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Tests\Service;

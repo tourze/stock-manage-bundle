@@ -118,7 +118,6 @@ class StockServiceTest extends AbstractIntegrationTestCase
         $this->expectExceptionMessage('SKU不能为空');
 
         // 抑制类型检查，因为这是故意测试错误输入的情况
-        /** @phpstan-ignore-next-line argument.type - Intentionally testing invalid input */
         $this->getStockService()->createBatch($data);
     }
 
