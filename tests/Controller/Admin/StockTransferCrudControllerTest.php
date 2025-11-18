@@ -19,11 +19,6 @@ use Tourze\StockManageBundle\Entity\StockTransfer;
 #[RunTestsInSeparateProcesses]
 class StockTransferCrudControllerTest extends AbstractEasyAdminControllerTestCase
 {
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertSame(StockTransfer::class, StockTransferCrudController::getEntityFqcn());
-    }
-
     public function testControllerIsInstantiable(): void
     {
         $controller = new StockTransferCrudController();

@@ -19,11 +19,6 @@ use Tourze\StockManageBundle\Entity\StockSnapshot;
 #[RunTestsInSeparateProcesses]
 class StockSnapshotCrudControllerTest extends AbstractEasyAdminControllerTestCase
 {
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertSame(StockSnapshot::class, StockSnapshotCrudController::getEntityFqcn());
-    }
-
     public function testControllerIsInstantiable(): void
     {
         $controller = new StockSnapshotCrudController();

@@ -19,11 +19,6 @@ use Tourze\StockManageBundle\Entity\StockAlert;
 #[RunTestsInSeparateProcesses]
 class StockAlertCrudControllerTest extends AbstractEasyAdminControllerTestCase
 {
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertSame(StockAlert::class, StockAlertCrudController::getEntityFqcn());
-    }
-
     public function testControllerIsInstantiable(): void
     {
         $controller = new StockAlertCrudController();

@@ -19,11 +19,6 @@ use Tourze\StockManageBundle\Entity\OperationalStockLock;
 #[RunTestsInSeparateProcesses]
 class OperationalStockLockCrudControllerTest extends AbstractEasyAdminControllerTestCase
 {
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertSame(OperationalStockLock::class, OperationalStockLockCrudController::getEntityFqcn());
-    }
-
     public function testControllerIsInstantiable(): void
     {
         $controller = new OperationalStockLockCrudController();

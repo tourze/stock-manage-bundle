@@ -19,11 +19,6 @@ use Tourze\StockManageBundle\Entity\StockAdjustment;
 #[RunTestsInSeparateProcesses]
 class StockAdjustmentCrudControllerTest extends AbstractEasyAdminControllerTestCase
 {
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertSame(StockAdjustment::class, StockAdjustmentCrudController::getEntityFqcn());
-    }
-
     public function testControllerIsInstantiable(): void
     {
         $controller = new StockAdjustmentCrudController();

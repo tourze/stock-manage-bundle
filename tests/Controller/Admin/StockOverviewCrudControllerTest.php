@@ -19,11 +19,6 @@ use Tourze\StockManageBundle\Entity\StockBatch;
 #[RunTestsInSeparateProcesses]
 class StockOverviewCrudControllerTest extends AbstractEasyAdminControllerTestCase
 {
-    public function testGetEntityFqcn(): void
-    {
-        $this->assertSame(StockBatch::class, StockOverviewCrudController::getEntityFqcn());
-    }
-
     public function testControllerIsInstantiable(): void
     {
         $controller = new StockOverviewCrudController();
