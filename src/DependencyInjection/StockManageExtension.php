@@ -6,7 +6,7 @@ namespace Tourze\StockManageBundle\DependencyInjection;
 
 use Tourze\SymfonyDependencyServiceLoader\AutoExtension;
 
-class StockManageExtension extends AutoExtension
+final class StockManageExtension extends AutoExtension
 {
     public function getAlias(): string
     {

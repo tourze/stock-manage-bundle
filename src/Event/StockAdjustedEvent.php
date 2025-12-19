@@ -10,7 +10,7 @@ use Tourze\StockManageBundle\Entity\StockBatch;
  * 库存调整事件
  * 当库存被调整时触发（盘点、损耗、找到等）.
  */
-class StockAdjustedEvent extends AbstractStockEvent
+final class StockAdjustedEvent extends AbstractStockEvent
 {
     public function __construct(
         protected StockBatch $stockBatch,

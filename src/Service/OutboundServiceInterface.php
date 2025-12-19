@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Service;
 
 use Tourze\ProductServiceContracts\SKU;
-use Tourze\StockManageBundle\Entity\StockOutbound;
+use Tourze\StockOutboundBundle\Entity\StockOutbound;
 use Tourze\StockManageBundle\Exception\InsufficientStockException;
 
 interface OutboundServiceInterface

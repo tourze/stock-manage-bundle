@@ -8,7 +8,7 @@ namespace Tourze\StockManageBundle\Exception;
  * 库存不足异常
  * 当请求的数量超过可用库存时抛出.
  */
-class InsufficientStockException extends AbstractStockException
+final class InsufficientStockException extends AbstractStockException
 {
     public static function create(string $spuId, int $required, int $available): self
     {

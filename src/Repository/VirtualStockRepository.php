@@ -14,7 +14,7 @@ use Tourze\StockManageBundle\Entity\VirtualStock;
  * @extends ServiceEntityRepository<VirtualStock>
  */
 #[AsRepository(entityClass: VirtualStock::class)]
-class VirtualStockRepository extends ServiceEntityRepository
+final class VirtualStockRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

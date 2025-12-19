@@ -14,7 +14,7 @@ use Tourze\StockManageBundle\Service\AllocationStrategy\FefoStrategy;
 use Tourze\StockManageBundle\Service\AllocationStrategy\FifoStrategy;
 use Tourze\StockManageBundle\Service\AllocationStrategy\LifoStrategy;
 
-class AllocationService
+final class AllocationService
 {
     /** @var AllocationStrategyInterface[] */
     private array $strategies = [];

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Exception;
 
-class DuplicateBatchException extends \RuntimeException
+final class DuplicateBatchException extends \RuntimeException
 {
     public static function withBatchNo(string $batchNo): self
     {

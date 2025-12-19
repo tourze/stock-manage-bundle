@@ -15,7 +15,7 @@ use Tourze\StockManageBundle\Repository\StockBatchRepository;
 /**
  * 库存验证器 - 负责各种库存相关的验证逻辑.
  */
-class StockValidator
+final class StockValidator
 {
     public function __construct(
         private StockBatchRepository $repository,

@@ -10,7 +10,7 @@ use Tourze\StockManageBundle\Entity\StockBatch;
  * 库存分配事件
  * 当库存被分配时触发.
  */
-class StockAllocatedEvent extends AbstractStockEvent
+final class StockAllocatedEvent extends AbstractStockEvent
 {
     public function __construct(
         protected StockBatch $stockBatch,

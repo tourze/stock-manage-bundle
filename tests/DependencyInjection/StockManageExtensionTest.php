@@ -13,7 +13,7 @@ use Tourze\StockManageBundle\DependencyInjection\StockManageExtension;
  * @internal
  */
 #[CoversClass(StockManageExtension::class)]
-class StockManageExtensionTest extends AbstractDependencyInjectionExtensionTestCase
+final class StockManageExtensionTest extends AbstractDependencyInjectionExtensionTestCase
 {
     private StockManageExtension $extension;
 
@@ -34,8 +34,7 @@ class StockManageExtensionTest extends AbstractDependencyInjectionExtensionTestC
 
         // 验证主要服务接口别名是否已设置
         $this->assertTrue($this->container->hasAlias('Tourze\StockManageBundle\Service\StockServiceInterface'));
-        $this->assertTrue($this->container->hasAlias('Tourze\StockManageBundle\Service\ReservationServiceInterface'));
-        $this->assertTrue($this->container->hasAlias('Tourze\StockManageBundle\Service\AlertServiceInterface'));
+        $this->assertTrue($this->container->hasAlias('Tourze\StockManageBundle\Service\BatchQueryServiceInterface'));
 
         // 验证核心服务已加载
         $this->assertTrue($this->container->hasDefinition('Tourze\StockManageBundle\Service\StockService'));

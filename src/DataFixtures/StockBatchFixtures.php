@@ -10,7 +10,7 @@ use Tourze\ProductServiceContracts\SkuLoaderInterface;
 use Tourze\ProductServiceContracts\SpuLoaderInterface;
 use Tourze\StockManageBundle\Entity\StockBatch;
 
-class StockBatchFixtures extends Fixture
+final class StockBatchFixtures extends Fixture
 {
     public const STOCK_BATCH_NORMAL = 'stock_batch_normal';
     public const STOCK_BATCH_PREMIUM = 'stock_batch_premium';

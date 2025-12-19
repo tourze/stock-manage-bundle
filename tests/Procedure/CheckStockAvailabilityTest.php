@@ -6,15 +6,13 @@ namespace Tourze\StockManageBundle\Tests\Procedure;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
-use Tourze\JsonRPC\Core\Tests\AbstractProcedureTestCase;
+use Tourze\PHPUnitJsonRPC\AbstractProcedureTestCase;
 use Tourze\ProductCoreBundle\Entity\Sku;
 use Tourze\ProductCoreBundle\Entity\Spu;
 use Tourze\StockManageBundle\Entity\StockBatch;
-use Tourze\StockManageBundle\Entity\StockReservation;
-use Tourze\StockManageBundle\Enum\StockReservationStatus;
-use Tourze\StockManageBundle\Enum\StockReservationType;
 use Tourze\StockManageBundle\Exception\InvalidArgumentException;
 use Tourze\StockManageBundle\Exception\InvalidOperationException;
+use Tourze\StockManageBundle\Param\CheckStockAvailabilityParam;
 use Tourze\StockManageBundle\Procedure\CheckStockAvailability;
 
 /**
@@ -52,7 +50,7 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         return $sku;
     }
 
-    private function createStockBatch(Sku $sku, int $quantity, ?string $batchNo = null): StockBatch
+    private function createStockBatch(Sku $sku, int $quantity, ?string $batchNo = null, ?int $availableQuantity = null): StockBatch
     {
         $entityManager = self::getEntityManager();
 
@@ -61,7 +59,7 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         $batch->setBatchNo($batchNo ?? 'BATCH-' . uniqid() . '-' . mt_rand(1000, 9999));
         $batch->setSku($sku);
         $batch->setQuantity($quantity);
-        $batch->setAvailableQuantity($quantity);
+        $batch->setAvailableQuantity($availableQuantity ?? $quantity);
         $batch->setReservedQuantity(0);
         $batch->setLockedQuantity(0);
         $batch->setUnitCost(10.0);
@@ -71,24 +69,6 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         $entityManager->flush();
 
         return $batch;
-    }
-
-    private function createStockReservation(Sku $sku, int $quantity): StockReservation
-    {
-        $entityManager = self::getEntityManager();
-
-        $reservation = new StockReservation();
-        $reservation->setSku($sku);
-        $reservation->setQuantity($quantity);
-        $reservation->setType(StockReservationType::ORDER);
-        $reservation->setBusinessId('TEST-' . uniqid());
-        $reservation->setStatus(StockReservationStatus::PENDING);
-        $reservation->setExpiresTime(new \DateTimeImmutable('+1 hour'));
-
-        $entityManager->persist($reservation);
-        $entityManager->flush();
-
-        return $reservation;
     }
 
     public function testExecuteWithValidItems(): void
@@ -101,16 +81,12 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         $this->createStockBatch($sku1, 10);
         $this->createStockBatch($sku2, 5);
 
-        // 创建预留库存
-        $this->createStockReservation($sku1, 2);
-        $this->createStockReservation($sku2, 1);
-
-        $this->procedure->items = [
+        $param = new CheckStockAvailabilityParam([
             ['productId' => 1, 'skuId' => (int) $sku1->getId(), 'quantity' => 5],
             ['productId' => 2, 'skuId' => (int) $sku2->getId(), 'quantity' => 3],
-        ];
+        ]);
 
-        $result = $this->procedure->execute();
+        $result = $this->procedure->execute($param);
 
         $this->assertTrue($result['success']);
         $this->assertSame(2, $result['totalCount']);
@@ -121,76 +97,75 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
 
     public function testValidateInputWithEmptyItems(): void
     {
-        $this->procedure->items = [];
+        $param = new CheckStockAvailabilityParam([]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('检查项目列表不能为空');
 
-        $this->procedure->execute();
+        $this->procedure->execute($param);
     }
 
     public function testValidateInputWithTooManyItems(): void
     {
-        $this->procedure->items = array_fill(0, 1001, ['productId' => 1, 'skuId' => 1, 'quantity' => 1]);
+        $param = new CheckStockAvailabilityParam(
+            array_fill(0, 1001, ['productId' => 1, 'skuId' => 1, 'quantity' => 1])
+        );
 
         $this->expectException(InvalidOperationException::class);
         $this->expectExceptionMessage('单次批量检查不能超过1000个项目');
 
-        $this->procedure->execute();
+        $this->procedure->execute($param);
     }
 
     public function testValidateInputWithInvalidFormat(): void
     {
         // 使用类型安全的方式传入错误格式数据来测试验证
-        $invalidItems = ['invalid'];
-        $this->procedure->items = $invalidItems;
+        $param = new CheckStockAvailabilityParam(['invalid']);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('第1个项目数据格式错误');
 
-        $this->procedure->execute();
+        $this->procedure->execute($param);
     }
 
     public function testValidateInputWithMissingFields(): void
     {
         // 使用类型安全的方式传入缺少字段的数据来测试验证
-        $itemsWithMissingFields = [
+        $param = new CheckStockAvailabilityParam([
             ['productId' => 1, 'quantity' => 5], // missing skuId
-        ];
-        $this->procedure->items = $itemsWithMissingFields;
+        ]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('第1个项目缺少必需字段: skuId');
 
-        $this->procedure->execute();
+        $this->procedure->execute($param);
     }
 
     public function testValidateInputWithInvalidFieldType(): void
     {
         // 使用类型安全的方式传入错误类型字段来测试验证
-        $itemsWithInvalidFieldType = [
+        $param = new CheckStockAvailabilityParam([
             ['productId' => 1, 'skuId' => 'invalid', 'quantity' => 5],
-        ];
-        $this->procedure->items = $itemsWithInvalidFieldType;
+        ]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('第1个项目的skuId必须为正整数');
 
-        $this->procedure->execute();
+        $this->procedure->execute($param);
     }
 
     public function testValidateInputWithDuplicateSkuIds(): void
     {
         // 使用固定的正整数SKU ID
-        $this->procedure->items = [
+        $param = new CheckStockAvailabilityParam([
             ['productId' => 1, 'skuId' => 100, 'quantity' => 5],
             ['productId' => 2, 'skuId' => 100, 'quantity' => 3],
-        ];
+        ]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('检查项目列表包含重复的SKU ID');
 
-        $this->procedure->execute();
+        $this->procedure->execute($param);
     }
 
     public function testExecuteWithInsufficientStock(): void
@@ -198,17 +173,14 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
         // 创建测试数据
         $sku = $this->createSkuWithSpu('sku-insufficient');
 
-        // 创建库存批次（总量5）
-        $this->createStockBatch($sku, 5);
+        // 创建库存批次：总量5，但可用量只有3（模拟被预留/锁定占用）
+        $this->createStockBatch($sku, 5, availableQuantity: 3);
 
-        // 创建预留库存（预留2）
-        $this->createStockReservation($sku, 2);
-
-        $this->procedure->items = [
+        $param = new CheckStockAvailabilityParam([
             ['productId' => 1, 'skuId' => (int) $sku->getId(), 'quantity' => 10],
-        ];
+        ]);
 
-        $result = $this->procedure->execute();
+        $result = $this->procedure->execute($param);
 
         $this->assertTrue($result['success']);
         $this->assertSame(1, $result['totalCount']);
@@ -217,7 +189,7 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
 
         $firstResult = $result['results'][0];
         $this->assertFalse($firstResult['available']);
-        $this->assertSame(3, $firstResult['currentStock']); // 5 - 2 = 3
+        $this->assertSame(3, $firstResult['currentStock']);
         $this->assertNotNull($firstResult['message']);
         $this->assertStringContainsString('库存不足', $firstResult['message']);
     }
@@ -225,11 +197,11 @@ class CheckStockAvailabilityTest extends AbstractProcedureTestCase
     public function testExecuteWithException(): void
     {
         // 使用一个不存在的SKU ID，这会导致查询失败
-        $this->procedure->items = [
+        $param = new CheckStockAvailabilityParam([
             ['productId' => 1, 'skuId' => 999999, 'quantity' => 5],
-        ];
+        ]);
 
-        $result = $this->procedure->execute();
+        $result = $this->procedure->execute($param);
 
         $this->assertTrue($result['success']);
         $this->assertSame(1, $result['totalCount']);

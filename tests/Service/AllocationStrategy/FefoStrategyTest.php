@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Tests\Service\AllocationStrategy;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\StockManageBundle\Entity\StockBatch;
 use Tourze\StockManageBundle\Service\AllocationStrategy\AllocationStrategyInterface;
 use Tourze\StockManageBundle\Service\AllocationStrategy\FefoStrategy;
@@ -14,13 +15,14 @@ use Tourze\StockManageBundle\Service\AllocationStrategy\FefoStrategy;
  * @internal
  */
 #[CoversClass(FefoStrategy::class)]
-class FefoStrategyTest extends TestCase
+#[RunTestsInSeparateProcesses]
+class FefoStrategyTest extends AbstractIntegrationTestCase
 {
     private FefoStrategy $strategy;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->strategy = new FefoStrategy();
+        $this->strategy = self::getService(FefoStrategy::class);
     }
 
     public function testImplementsInterface(): void
@@ -113,13 +115,14 @@ class FefoStrategyTest extends TestCase
 
     private function createBatchWithExpiry(?string $expiryDate): StockBatch
     {
-        $batch = $this->createMock(StockBatch::class);
+        $batch = new StockBatch();
+        $batch->setBatchNo('BATCH-' . uniqid());
+        $batch->setQuantity(100);
+        $batch->setAvailableQuantity(100);
 
         if (null !== $expiryDate) {
             $expiryDateTime = new \DateTimeImmutable($expiryDate);
-            $batch->method('getExpiryDate')->willReturn($expiryDateTime);
-        } else {
-            $batch->method('getExpiryDate')->willReturn(null);
+            $batch->setExpiryDate($expiryDateTime);
         }
 
         return $batch;

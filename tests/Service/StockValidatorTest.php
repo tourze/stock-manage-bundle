@@ -4,92 +4,46 @@ declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Tests\Service;
 
-use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
-use Tourze\ProductServiceContracts\SKU;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
+use Tourze\ProductCoreBundle\Entity\Sku;
+use Tourze\ProductCoreBundle\Entity\Spu;
+use Tourze\ProductServiceContracts\SKU as SKUInterface;
 use Tourze\StockManageBundle\Entity\StockBatch;
 use Tourze\StockManageBundle\Exception\DuplicateBatchException;
 use Tourze\StockManageBundle\Exception\InvalidOperationException;
 use Tourze\StockManageBundle\Exception\InvalidQuantityException;
 use Tourze\StockManageBundle\Exception\InvalidStatusException;
-use Tourze\StockManageBundle\Repository\StockBatchRepository;
 use Tourze\StockManageBundle\Service\StockValidator;
 
 /**
  * @internal
  */
 #[CoversClass(StockValidator::class)]
-final class StockValidatorTest extends TestCase
+#[RunTestsInSeparateProcesses]
+final class StockValidatorTest extends AbstractIntegrationTestCase
 {
     private StockValidator $stockValidator;
 
-    private StockBatchRepository&MockStockBatchRepository $repository;
-
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        parent::setUp();
-
-        $this->repository = new class($this->createMock(ManagerRegistry::class)) extends StockBatchRepository implements MockStockBatchRepository {
-            private bool $batchExists = false;
-
-            public function __construct(ManagerRegistry $registry)
-            {
-                parent::__construct($registry);
-            }
-
-            public function existsByBatchNo(string $batchNo): bool
-            {
-                return $this->batchExists;
-            }
-
-            public function setBatchExists(bool $exists): void
-            {
-                $this->batchExists = $exists;
-            }
-
-            public function expectsOnce(string $method, string $with, bool $willReturn): void
-            {
-                if ('existsByBatchNo' === $method) {
-                    $this->batchExists = $willReturn;
-                }
-            }
-        };
-        $this->stockValidator = new StockValidator($this->repository);
+        $this->stockValidator = self::getService(StockValidator::class);
     }
 
-    private function createMockSku(string $skuId): SKU
+    private function createSku(string $gtin): Sku
     {
-        return new class($skuId) implements SKU {
-            public function __construct(private string $id)
-            {
-            }
+        // 创建 SPU（Sku 的必填关联）
+        $spu = new Spu();
+        $spu->setTitle('Test SPU for ' . $gtin);
 
-            public function getId(): string
-            {
-                return $this->id;
-            }
+        // 创建 Sku 并关联 SPU
+        $sku = new Sku();
+        $sku->setGtin($gtin);
+        $sku->setUnit('个'); // Required NOT NULL field
+        $sku->setSpu($spu); // Required NOT NULL foreign key
 
-            public function getGtin(): ?string
-            {
-                return null;
-            }
-
-            public function getMpn(): ?string
-            {
-                return null;
-            }
-
-            public function getRemark(): ?string
-            {
-                return null;
-            }
-
-            public function isValid(): ?bool
-            {
-                return true;
-            }
-        };
+        return $sku;
     }
 
     /**
@@ -97,152 +51,23 @@ final class StockValidatorTest extends TestCase
      */
     private function createStockBatch(array $data): StockBatch
     {
-        return $this->createStockBatchInstance($data);
-    }
+        $batch = new StockBatch();
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function createStockBatchInstance(array $data): StockBatch
-    {
-        return new class($data) extends StockBatch {
-            /**
-             * @param array<string, mixed> $data
-             */
-            public function __construct(private array $data)
-            {
-                parent::__construct();
-            }
+        $batch->setBatchNo($data['batch_no'] ?? 'BATCH001');
+        $batch->setSku((isset($data['sku']) && $data['sku'] instanceof SKUInterface) ? $data['sku'] : $this->createSku('SKU001'));
+        $batch->setQuantity($data['quantity'] ?? 100);
+        $batch->setAvailableQuantity($data['available_quantity'] ?? $batch->getQuantity());
+        $batch->setUnitCost($data['unit_cost'] ?? 10.50);
+        $batch->setQualityLevel($data['quality_level'] ?? 'A');
+        $batch->setLocationId(array_key_exists('location_id', $data) ? $data['location_id'] : 'WH001');
+        $batch->setStatus($data['status'] ?? 'available');
 
-            public function getId(): int
-            {
-                return $this->extractInt('id', 1);
-            }
-
-            public function getBatchNo(): string
-            {
-                return $this->extractString('batch_no', 'BATCH001');
-            }
-
-            public function getSku(): SKU
-            {
-                if (isset($this->data['sku']) && $this->data['sku'] instanceof SKU) {
-                    return $this->data['sku'];
-                }
-
-                return $this->createDefaultSku();
-            }
-
-            public function getQuantity(): int
-            {
-                return $this->extractInt('quantity', 100);
-            }
-
-            public function getAvailableQuantity(): int
-            {
-                return $this->extractInt('available_quantity', $this->getQuantity());
-            }
-
-            public function getUnitCost(): float
-            {
-                return $this->extractFloat('unit_cost', 10.50);
-            }
-
-            public function getQualityLevel(): string
-            {
-                return $this->extractString('quality_level', 'A');
-            }
-
-            public function getLocationId(): ?string
-            {
-                $value = array_key_exists('location_id', $this->data) ? $this->data['location_id'] : 'WH001';
-
-                return null === $value ? null : $this->ensureString($value);
-            }
-
-            public function getStatus(): string
-            {
-                return $this->extractString('status', 'available');
-            }
-
-            private function extractInt(string $key, int $default): int
-            {
-                $value = $this->data[$key] ?? $default;
-
-                return match (true) {
-                    is_int($value) => $value,
-                    is_numeric($value) => (int) $value,
-                    default => $default,
-                };
-            }
-
-            private function extractFloat(string $key, float $default): float
-            {
-                $value = $this->data[$key] ?? $default;
-
-                return match (true) {
-                    is_float($value) => $value,
-                    is_numeric($value) => (float) $value,
-                    default => $default,
-                };
-            }
-
-            private function extractString(string $key, string $default): string
-            {
-                $value = $this->data[$key] ?? $default;
-
-                return match (true) {
-                    is_string($value) => $value,
-                    is_scalar($value) => (string) $value,
-                    default => $default,
-                };
-            }
-
-            private function ensureString(mixed $value): string
-            {
-                return match (true) {
-                    is_string($value) => $value,
-                    is_scalar($value) => (string) $value,
-                    default => '',
-                };
-            }
-
-            private function createDefaultSku(): SKU
-            {
-                return new class implements SKU {
-                    // @phpstan-ignore tip.anonymousTestClass
-                    public function getId(): string
-                    {
-                        return 'SKU001';
-                    }
-
-                    public function getGtin(): ?string
-                    {
-                        return null;
-                    }
-
-                    public function getMpn(): ?string
-                    {
-                        return null;
-                    }
-
-                    public function getRemark(): ?string
-                    {
-                        return null;
-                    }
-
-                    public function isValid(): ?bool
-                    {
-                        return true;
-                    }
-                };
-            }
-        };
+        return $batch;
     }
 
     public function testValidateCreateBatchDataSuccess(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $data = [
             'batch_no' => 'BATCH001',
@@ -250,8 +75,6 @@ final class StockValidatorTest extends TestCase
             'quantity' => 100,
             'unit_cost' => 10.50,
         ];
-
-        $this->repository->setBatchExists(false);
 
         // 验证方法成功执行而不抛出异常
         $result = null;
@@ -267,15 +90,20 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateCreateBatchDataDuplicateBatchNo(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
+
+        // 先创建一个批次使批次号已存在
+        $existingBatch = $this->createStockBatch([
+            'batch_no' => 'BATCH001',
+            'sku' => $sku,
+        ]);
+        $this->persistAndFlush($existingBatch);
 
         $data = [
             'batch_no' => 'BATCH001',
             'sku' => $sku,
             'quantity' => 100,
         ];
-
-        $this->repository->setBatchExists(true);
 
         $this->expectException(DuplicateBatchException::class);
 
@@ -311,7 +139,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateCreateBatchDataMissingQuantity(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $data = [
             'batch_no' => 'BATCH001',
@@ -325,7 +153,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateCreateBatchDataInvalidQuantity(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $data = [
             'batch_no' => 'BATCH001',
@@ -340,7 +168,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateCreateBatchDataNegativeQuantity(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $data = [
             'batch_no' => 'BATCH001',
@@ -355,7 +183,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateCreateBatchDataWithoutBatchNo(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $data = [
             'sku' => $sku,
@@ -379,7 +207,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilitySuccess(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'batch_no' => 'BATCH001',
@@ -414,8 +242,8 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityDifferentSku(): void
     {
-        $sku1 = $this->createMockSku('SKU001');
-        $sku2 = $this->createMockSku('SKU002');
+        $sku1 = $this->createSku('SKU001');
+        $sku2 = $this->createSku('SKU002');
 
         $batch1 = $this->createStockBatch([
             'sku' => $sku1,
@@ -439,7 +267,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityDifferentQualityLevel(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'sku' => $sku,
@@ -463,7 +291,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityDifferentLocation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'sku' => $sku,
@@ -548,7 +376,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityWithThreeBatches(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'batch_no' => 'BATCH001',
@@ -580,7 +408,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityWithThirdBatchDifferent(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'batch_no' => 'BATCH001',
@@ -613,16 +441,13 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateCreateBatchDataWithEmptyBatchNo(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $data = [
             'batch_no' => '',
             'sku' => $sku,
             'quantity' => 100,
         ];
-
-        // 空批次号会被检查（因为isset()返回true），但不会重复
-        $this->repository->setBatchExists(false);
 
         // 验证方法成功执行而不抛出异常
         $result = null;
@@ -638,7 +463,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityWithNullLocation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'sku' => $sku,
@@ -661,7 +486,7 @@ final class StockValidatorTest extends TestCase
 
     public function testValidateBatchCompatibilityMixedNullAndLocationId(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001');
 
         $batch1 = $this->createStockBatch([
             'sku' => $sku,

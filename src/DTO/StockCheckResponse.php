@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\DTO;
 
-final class StockCheckResponse
+final readonly class StockCheckResponse
 {
     public function __construct(
-        public readonly int $productId,
-        public readonly int $skuId,
-        public readonly bool $available,
-        public readonly int $currentStock,
-        public readonly int $requestedQuantity = 0,
-        public readonly ?string $message = null,
+        public int $productId,
+        public int $skuId,
+        public bool $available,
+        public int $currentStock,
+        public int $requestedQuantity = 0,
+        public ?string $message = null,
     ) {
     }
 

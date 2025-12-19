@@ -9,15 +9,16 @@ use Monolog\Attribute\WithMonologChannel;
 use Psr\Log\LoggerInterface;
 use Tourze\JsonRPC\Core\Attribute\MethodDoc;
 use Tourze\JsonRPC\Core\Attribute\MethodExpose;
-use Tourze\JsonRPC\Core\Attribute\MethodParam;
 use Tourze\JsonRPC\Core\Attribute\MethodTag;
+use Tourze\JsonRPC\Core\Contracts\RpcParamInterface;
+use Tourze\JsonRPC\Core\Result\ArrayResult;
 use Tourze\JsonRPC\Core\Procedure\BaseProcedure;
 use Tourze\StockManageBundle\DTO\StockCheckRequest;
 use Tourze\StockManageBundle\DTO\StockCheckResponse;
 use Tourze\StockManageBundle\Exception\InvalidArgumentException;
 use Tourze\StockManageBundle\Exception\InvalidOperationException;
+use Tourze\StockManageBundle\Param\CheckStockAvailabilityParam;
 use Tourze\StockManageBundle\Repository\StockBatchRepository;
-use Tourze\StockManageBundle\Repository\StockReservationRepository;
 
 #[MethodTag(name: '库存管理')]
 #[MethodDoc(summary: '批量检查库存可用性')]
@@ -25,34 +26,21 @@ use Tourze\StockManageBundle\Repository\StockReservationRepository;
 #[WithMonologChannel(channel: 'stock_manage')]
 final class CheckStockAvailability extends BaseProcedure
 {
-    /**
-     * @var array<array{productId: int, skuId: int, quantity: int}>
-     */
-    #[MethodParam(description: '库存检查项目列表')]
-    public array $items = [];
-
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly StockBatchRepository $stockBatchRepository,
-        private readonly StockReservationRepository $reservationRepository,
         private readonly LoggerInterface $procedureLogger,
     ) {
     }
 
     /**
-     * @return array{
-     *   success: bool,
-     *   totalCount: int,
-     *   successCount: int,
-     *   failedCount: int,
-     *   results: array<array{productId: int, skuId: int, available: bool, currentStock: int, requestedQuantity: int, message: ?string, shortage: int}>
-     * }
+     * @phpstan-param CheckStockAvailabilityParam $param
      */
-    public function execute(): array
+    public function execute(CheckStockAvailabilityParam|RpcParamInterface $param): ArrayResult
     {
-        $this->validateInput();
+        $this->validateInput($param->items);
 
-        $requests = $this->parseRequests();
+        $requests = $this->parseRequests($param->items);
         $responses = [];
 
         $this->procedureLogger->info('开始批量库存检查', [
@@ -92,13 +80,13 @@ final class CheckStockAvailability extends BaseProcedure
              */
             $resultArrays = array_map(fn (StockCheckResponse $r) => $r->toArray(), $responses);
 
-            return [
+            return new ArrayResult([
                 'success' => true,
                 'totalCount' => count($responses),
                 'successCount' => $successCount,
                 'failedCount' => $failedCount,
                 'results' => $resultArrays,
-            ];
+            ]);
         } catch (\Throwable $e) {
             $this->entityManager->rollback();
 
@@ -111,31 +99,43 @@ final class CheckStockAvailability extends BaseProcedure
         }
     }
 
-    private function validateInput(): void
+    /**
+     * @param array<array{productId: int, skuId: int, quantity: int}> $items
+     */
+    private function validateInput(array $items): void
     {
-        $this->validateItemsExist();
-        $this->validateItemsCount();
-        $this->validateItemsStructure();
-        $this->validateUniqueSkuIds();
+        $this->validateItemsExist($items);
+        $this->validateItemsCount($items);
+        $this->validateItemsStructure($items);
+        $this->validateUniqueSkuIds($items);
     }
 
-    private function validateItemsExist(): void
+    /**
+     * @param array<array{productId: int, skuId: int, quantity: int}> $items
+     */
+    private function validateItemsExist(array $items): void
     {
-        if ([] === $this->items) {
+        if ([] === $items) {
             throw new InvalidArgumentException('检查项目列表不能为空');
         }
     }
 
-    private function validateItemsCount(): void
+    /**
+     * @param array<array{productId: int, skuId: int, quantity: int}> $items
+     */
+    private function validateItemsCount(array $items): void
     {
-        if (count($this->items) > 1000) {
+        if (count($items) > 1000) {
             throw new InvalidOperationException('单次批量检查不能超过1000个项目');
         }
     }
 
-    private function validateItemsStructure(): void
+    /**
+     * @param array<array{productId: int, skuId: int, quantity: int}> $items
+     */
+    private function validateItemsStructure(array $items): void
     {
-        foreach ($this->items as $index => $item) {
+        foreach ($items as $index => $item) {
             $this->validateSingleItem($item, $index);
         }
     }
@@ -176,21 +176,25 @@ final class CheckStockAvailability extends BaseProcedure
         }
     }
 
-    private function validateUniqueSkuIds(): void
+    /**
+     * @param array<array{productId: int, skuId: int, quantity: int}> $items
+     */
+    private function validateUniqueSkuIds(array $items): void
     {
-        $skuIds = array_column($this->items, 'skuId');
+        $skuIds = array_column($items, 'skuId');
         if (count($skuIds) !== count(array_unique($skuIds))) {
             throw new InvalidArgumentException('检查项目列表包含重复的SKU ID');
         }
     }
 
     /**
+     * @param array<array{productId: int, skuId: int, quantity: int}> $items
      * @return array<StockCheckRequest>
      */
-    private function parseRequests(): array
+    private function parseRequests(array $items): array
     {
         $requests = [];
-        foreach ($this->items as $item) {
+        foreach ($items as $item) {
             $requests[] = new StockCheckRequest(
                 $item['productId'],
                 $item['skuId'],
@@ -204,10 +208,8 @@ final class CheckStockAvailability extends BaseProcedure
     private function checkSingleStockAvailability(StockCheckRequest $request): StockCheckResponse
     {
         try {
-            // 直接计算可用库存
-            $totalQuantity = $this->stockBatchRepository->getTotalQuantityBySkuId($request->skuId);
-            $reservedQuantity = $this->reservationRepository->getTotalReservedQuantity((string) $request->skuId);
-            $availableQuantity = $totalQuantity - $reservedQuantity;
+            // stock_batches.available_quantity 是可用库存的权威值（已扣除预留/锁定等占用）
+            $availableQuantity = $this->stockBatchRepository->getTotalAvailableQuantityBySkuId($request->skuId);
             $isAvailable = $availableQuantity >= $request->quantity;
 
             return new StockCheckResponse(

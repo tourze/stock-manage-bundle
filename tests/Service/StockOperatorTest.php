@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Tests\Service;
 
-use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
-use Tourze\ProductServiceContracts\SKU;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
+use Tourze\ProductCoreBundle\Entity\Sku;
+use Tourze\ProductCoreBundle\Entity\Spu;
 use Tourze\StockManageBundle\Entity\StockBatch;
 use Tourze\StockManageBundle\Entity\StockLog;
 use Tourze\StockManageBundle\Enum\StockChange;
@@ -20,28 +21,36 @@ use Tourze\StockManageBundle\Service\StockOperator;
  * @internal
  */
 #[CoversClass(StockOperator::class)]
-final class StockOperatorTest extends TestCase
+#[RunTestsInSeparateProcesses]
+final class StockOperatorTest extends AbstractIntegrationTestCase
 {
     private StockOperator $stockOperator;
 
-    private EntityManagerInterface $entityManager;
-
     private StockBatchRepository $repository;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        parent::setUp();
-
-        $this->entityManager = $this->createMock(EntityManagerInterface::class);
-        $this->repository = $this->createMock(StockBatchRepository::class);
-
-        $this->stockOperator = new StockOperator($this->entityManager, $this->repository);
+        $this->stockOperator = self::getService(StockOperator::class);
+        $this->repository = self::getService(StockBatchRepository::class);
     }
 
-    private function createMockSku(string $skuId): SKU
+    private function createSku(string $gtin): Sku
     {
-        $sku = $this->createMock(SKU::class);
-        $sku->method('getId')->willReturn($skuId);
+        $entityManager = self::getEntityManager();
+
+        $spu = new Spu();
+        $spu->setTitle('Test SPU for ' . $gtin);
+        $spu->setGtin('SPU-' . $gtin);
+        $entityManager->persist($spu);
+        $entityManager->flush();
+
+        $sku = new Sku();
+        $sku->setGtin($gtin);
+        $sku->setUnit('个');
+        $sku->setSpu($spu);
+
+        $entityManager->persist($sku);
+        $entityManager->flush();
 
         return $sku;
     }
@@ -49,102 +58,84 @@ final class StockOperatorTest extends TestCase
     /**
      * @param array<string, mixed> $data
      */
-    private function createStockBatch(array $data): StockBatch
+    private function createStockBatch(Sku $sku, array $data): StockBatch
     {
-        $batch = $this->createMock(StockBatch::class);
-        $batch->method('getId')->willReturn($data['id'] ?? 1);
-        $batch->method('getBatchNo')->willReturn($data['batch_no'] ?? 'BATCH001');
-        $batch->method('getSku')->willReturn($data['sku'] ?? $this->createMockSku('SKU001'));
-        $batch->method('getQuantity')->willReturn($data['quantity'] ?? 100);
-        $batch->method('getAvailableQuantity')->willReturn($data['available_quantity'] ?? $data['quantity'] ?? 100);
-        $batch->method('getReservedQuantity')->willReturn($data['reserved_quantity'] ?? 0);
-        $batch->method('getLockedQuantity')->willReturn($data['locked_quantity'] ?? 0);
-        $batch->method('getUnitCost')->willReturn($data['unit_cost'] ?? 10.50);
-        $batch->method('getQualityLevel')->willReturn($data['quality_level'] ?? 'A');
-        $batch->method('getLocationId')->willReturn($data['location_id'] ?? 'WH001');
-        $batch->method('getStatus')->willReturn($data['status'] ?? 'available');
+        $entityManager = self::getEntityManager();
 
-        // 允许所有 setter 方法的调用（用于操作方法）
+        $batch = new StockBatch();
+        $batch->setBatchNo($data['batch_no'] ?? 'BATCH001');
+        $batch->setSku($sku);
+        $batch->setQuantity($data['quantity'] ?? 100);
+        $batch->setAvailableQuantity($data['available_quantity'] ?? $data['quantity'] ?? 100);
+        $batch->setReservedQuantity($data['reserved_quantity'] ?? 0);
+        $batch->setLockedQuantity($data['locked_quantity'] ?? 0);
+        $batch->setUnitCost($data['unit_cost'] ?? 10.50);
+        $batch->setQualityLevel($data['quality_level'] ?? 'A');
+        $batch->setLocationId($data['location_id'] ?? 'WH001');
+        $batch->setStatus($data['status'] ?? 'available');
+
+        $entityManager->persist($batch);
+        $entityManager->flush();
 
         return $batch;
     }
 
-    private function createStockLog(SKU $sku, int $quantity, StockChange $type): StockLog
+    private function createStockLog(Sku $sku, int $quantity, StockChange $type): StockLog
     {
-        $log = $this->createMock(StockLog::class);
-        $log->method('getSku')->willReturn($sku);
-        $log->method('getQuantity')->willReturn($quantity);
-        $log->method('getType')->willReturn($type);
+        $log = new StockLog();
+        $log->setSku($sku);
+        $log->setQuantity($quantity);
+        $log->setType($type);
 
         return $log;
     }
 
     public function testBatchProcess(): void
     {
-        $sku1 = $this->createMockSku('SKU001');
-        $sku2 = $this->createMockSku('SKU002');
+        $sku1 = $this->createSku('SKU001-BATCH');
+        $sku2 = $this->createSku('SKU002-BATCH');
+
+        $batch1 = $this->createStockBatch($sku1, [
+            'batch_no' => 'BATCH001',
+            'quantity' => 100,
+            'available_quantity' => 100,
+            'locked_quantity' => 0,
+        ]);
+
+        $batch2 = $this->createStockBatch($sku2, [
+            'batch_no' => 'BATCH002',
+            'quantity' => 80,
+            'available_quantity' => 80,
+        ]);
 
         $log1 = $this->createStockLog($sku1, 50, StockChange::LOCK);
         $log2 = $this->createStockLog($sku2, 30, StockChange::DEDUCT);
 
         $logs = [$log1, $log2];
 
-        $batch1 = $this->createStockBatch([
-            'sku' => $sku1,
-            'available_quantity' => 100,
-            'locked_quantity' => 0,
-        ]);
-
-        $batch2 = $this->createStockBatch([
-            'sku' => $sku2,
-            'quantity' => 80,
-            'available_quantity' => 80,
-        ]);
-
-        $this->repository->expects($this->exactly(2))
-            ->method('findAvailableBySku')
-            ->willReturnCallback(function (SKU $sku) use ($batch1, $batch2) {
-                return match ($sku->getId()) {
-                    'SKU001' => [$batch1],
-                    'SKU002' => [$batch2],
-                    default => [],
-                };
-            })
-        ;
-
-        // Mock lock operation on batch1
-        $batch1->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(50) // 100 - 50
-        ;
-
-        $batch1->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(50) // 0 + 50
-        ;
-
-        // Mock deduct operation on batch2
-        $batch2->expects($this->once())
-            ->method('setQuantity')
-            ->with(50) // 80 - 30
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(50) // 80 - 30
-        ;
-
-        $this->entityManager->expects($this->exactly(2))
-            ->method('flush')
-        ;
-
         $this->stockOperator->batchProcess($logs);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch1 = $this->repository->find($batch1->getId());
+        $this->assertNotNull($updatedBatch1);
+        $this->assertEquals(50, $updatedBatch1->getAvailableQuantity()); // 100 - 50
+        $this->assertEquals(50, $updatedBatch1->getLockedQuantity()); // 0 + 50
+
+        $updatedBatch2 = $this->repository->find($batch2->getId());
+        $this->assertNotNull($updatedBatch2);
+        $this->assertEquals(50, $updatedBatch2->getQuantity()); // 80 - 30
+        $this->assertEquals(50, $updatedBatch2->getAvailableQuantity()); // 80 - 30
     }
 
     public function testProcessWithInvalidStockLog(): void
     {
-        $log = $this->createMock(StockLog::class);
-        $log->method('getSku')->willReturn(null);
+        $log = new StockLog();
+        $log->setQuantity(50);
+        $log->setType(StockChange::LOCK);
+        // 不设置 SKU
 
         $this->expectException(InvalidOperationException::class);
         $this->expectExceptionMessage('StockLog必须包含有效的SKU信息');
@@ -154,7 +145,7 @@ final class StockOperatorTest extends TestCase
 
     public function testProcessWithUnsupportedType(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-UNSUPPORTED');
         $log = $this->createStockLog($sku, 50, StockChange::INBOUND);
 
         // INBOUND 操作目前在 match 表达式中没有被处理，应该触发 default 分支
@@ -166,71 +157,49 @@ final class StockOperatorTest extends TestCase
 
     public function testLockStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-LOCK');
 
-        $batch1 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch1 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-LOCK',
+            'quantity' => 100,
             'available_quantity' => 80,
             'locked_quantity' => 10,
         ]);
 
-        $batch2 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch2 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH002-LOCK',
+            'quantity' => 150,
             'available_quantity' => 120,
             'locked_quantity' => 5,
         ]);
 
-        $batches = [$batch1, $batch2];
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn($batches)
-        ;
-
         // Mock locking 150 units: 80 from batch1 + 70 from batch2
-        $batch1->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(0) // 80 - 80 = 0
-        ;
-
-        $batch1->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(90) // 10 + 80 = 90
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(50) // 120 - 70 = 50
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(75) // 5 + 70 = 75
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->lockStock($sku, 150);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch1 = $this->repository->find($batch1->getId());
+        $this->assertNotNull($updatedBatch1);
+        $this->assertEquals(0, $updatedBatch1->getAvailableQuantity()); // 80 - 80 = 0
+        $this->assertEquals(90, $updatedBatch1->getLockedQuantity()); // 10 + 80 = 90
+
+        $updatedBatch2 = $this->repository->find($batch2->getId());
+        $this->assertNotNull($updatedBatch2);
+        $this->assertEquals(50, $updatedBatch2->getAvailableQuantity()); // 120 - 70 = 50
+        $this->assertEquals(75, $updatedBatch2->getLockedQuantity()); // 5 + 70 = 75
     }
 
     public function testLockStockInsufficientStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
-        $sku->method('getId')->willReturn('SKU001');
+        $sku = $this->createSku('SKU001-LOCK-INSUFFICIENT');
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-LOCK-INSUFFICIENT',
+            'quantity' => 50,
             'available_quantity' => 50,
         ]);
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
 
         $this->expectException(InsufficientStockException::class);
 
@@ -239,182 +208,108 @@ final class StockOperatorTest extends TestCase
 
     public function testUnlockStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-UNLOCK');
 
-        $batch1 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch1 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-UNLOCK',
+            'quantity' => 100,
             'available_quantity' => 20,
             'locked_quantity' => 80,
         ]);
 
-        $batch2 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch2 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH002-UNLOCK',
+            'quantity' => 120,
             'available_quantity' => 50,
             'locked_quantity' => 70,
         ]);
 
-        $batches = [$batch1, $batch2];
-
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn($batches)
-        ;
-
         // Mock unlocking 100 units: 80 from batch1 + 20 from batch2
-        $batch1->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(0) // 80 - 80 = 0
-        ;
-
-        $batch1->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(100) // 20 + 80 = 100
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(50) // 70 - 20 = 50
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(70) // 50 + 20 = 70
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->unlockStock($sku, 100);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch1 = $this->repository->find($batch1->getId());
+        $this->assertNotNull($updatedBatch1);
+        $this->assertEquals(0, $updatedBatch1->getLockedQuantity()); // 80 - 80 = 0
+        $this->assertEquals(100, $updatedBatch1->getAvailableQuantity()); // 20 + 80 = 100
+
+        $updatedBatch2 = $this->repository->find($batch2->getId());
+        $this->assertNotNull($updatedBatch2);
+        $this->assertEquals(50, $updatedBatch2->getLockedQuantity()); // 70 - 20 = 50
+        $this->assertEquals(70, $updatedBatch2->getAvailableQuantity()); // 50 + 20 = 70
     }
 
     public function testDeductStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-DEDUCT');
 
-        $batch1 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch1 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-DEDUCT',
             'quantity' => 100,
             'available_quantity' => 80,
         ]);
 
-        $batch2 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch2 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH002-DEDUCT',
             'quantity' => 150,
             'available_quantity' => 120,
         ]);
 
-        $batches = [$batch1, $batch2];
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn($batches)
-        ;
-
         // Mock deducting 150 units: 80 from batch1 + 70 from batch2
-        $batch1->expects($this->once())
-            ->method('setQuantity')
-            ->with(20) // 100 - 80 = 20
-        ;
-
-        $batch1->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(0) // 80 - 80 = 0
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setQuantity')
-            ->with(80) // 150 - 70 = 80
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(50) // 120 - 70 = 50
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->deductStock($sku, 150);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch1 = $this->repository->find($batch1->getId());
+        $this->assertNotNull($updatedBatch1);
+        $this->assertEquals(20, $updatedBatch1->getQuantity()); // 100 - 80 = 20
+        $this->assertEquals(0, $updatedBatch1->getAvailableQuantity()); // 80 - 80 = 0
+
+        $updatedBatch2 = $this->repository->find($batch2->getId());
+        $this->assertNotNull($updatedBatch2);
+        $this->assertEquals(80, $updatedBatch2->getQuantity()); // 150 - 70 = 80
+        $this->assertEquals(50, $updatedBatch2->getAvailableQuantity()); // 120 - 70 = 50
     }
 
     public function testDeductStockWithDepletedBatch(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-DEPLETED');
 
-        // 创建一个不使用通用设置的特殊mock
-        $batch = $this->createMock(StockBatch::class);
-        $batch->method('getSku')->willReturn($sku);
-
-        // 设置动态状态跟踪
-        $currentQuantity = 50;
-        $currentAvailableQuantity = 50;
-
-        $batch->method('getQuantity')->willReturnCallback(function () use (&$currentQuantity) {
-            return $currentQuantity;
-        });
-        $batch->method('getAvailableQuantity')->willReturnCallback(function () use (&$currentAvailableQuantity) {
-            return $currentAvailableQuantity;
-        });
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
+        $batch = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-DEPLETED',
+            'quantity' => 50,
+            'available_quantity' => 50,
+            'status' => 'available',
+        ]);
 
         // Mock deducting all 50 units
-        $batch->expects($this->once())
-            ->method('setQuantity')
-            ->with(0) // 50 - 50 = 0
-            ->willReturnCallback(function ($quantity) use (&$currentQuantity, $batch) {
-                $currentQuantity = $quantity;
-
-                return $batch;
-            })
-        ;
-
-        $batch->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(0) // 50 - 50 = 0
-            ->willReturnCallback(function ($quantity) use (&$currentAvailableQuantity, $batch) {
-                $currentAvailableQuantity = $quantity;
-
-                return $batch;
-            })
-        ;
-
-        // Should mark as depleted
-        $batch->expects($this->once())
-            ->method('setStatus')
-            ->with('depleted')
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->deductStock($sku, 50);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch = $this->repository->find($batch->getId());
+        $this->assertNotNull($updatedBatch);
+        $this->assertEquals(0, $updatedBatch->getQuantity()); // 50 - 50 = 0
+        $this->assertEquals(0, $updatedBatch->getAvailableQuantity()); // 50 - 50 = 0
+        $this->assertEquals('depleted', $updatedBatch->getStatus()); // Should mark as depleted
     }
 
     public function testDeductStockInsufficientStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
-        $sku->method('getId')->willReturn('SKU001');
+        $sku = $this->createSku('SKU001-DEDUCT-INSUFFICIENT');
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-DEDUCT-INSUFFICIENT',
+            'quantity' => 30,
             'available_quantity' => 30,
         ]);
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
 
         $this->expectException(InsufficientStockException::class);
 
@@ -423,55 +318,36 @@ final class StockOperatorTest extends TestCase
 
     public function testReturnStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-RETURN');
 
-        $batch1 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch1 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-RETURN',
             'quantity' => 80,
             'available_quantity' => 50,
         ]);
 
-        $batch2 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch2 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH002-RETURN',
             'quantity' => 120,
             'available_quantity' => 100,
         ]);
 
-        $batches = [$batch1, $batch2];
-
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn($batches)
-        ;
-
         // Should return stock to the last batch (batch2)
-        $batch2->expects($this->once())
-            ->method('setQuantity')
-            ->with(170) // 120 + 50 = 170
-        ;
-
-        $batch2->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(150) // 100 + 50 = 150
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->returnStock($sku, 50);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch2 = $this->repository->find($batch2->getId());
+        $this->assertNotNull($updatedBatch2);
+        $this->assertEquals(170, $updatedBatch2->getQuantity()); // 120 + 50 = 170
+        $this->assertEquals(150, $updatedBatch2->getAvailableQuantity()); // 100 + 50 = 150
     }
 
     public function testReturnStockNoBatches(): void
     {
-        $sku = $this->createMockSku('SKU001');
-
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn([])
-        ;
+        $sku = $this->createSku('SKU001-RETURN-NOBATCH');
 
         $this->expectException(InvalidOperationException::class);
         $this->expectExceptionMessage('未找到可退回库存的批次');
@@ -481,55 +357,36 @@ final class StockOperatorTest extends TestCase
 
     public function testPutStock(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-PUT');
 
-        $batch1 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch1 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-PUT',
             'quantity' => 80,
             'available_quantity' => 50,
         ]);
 
-        $batch2 = $this->createStockBatch([
-            'sku' => $sku,
+        $batch2 = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH002-PUT',
             'quantity' => 120,
             'available_quantity' => 100,
         ]);
 
-        $batches = [$batch1, $batch2];
-
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn($batches)
-        ;
-
         // Should put stock to the first batch (batch1)
-        $batch1->expects($this->once())
-            ->method('setQuantity')
-            ->with(130) // 80 + 50 = 130
-        ;
-
-        $batch1->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(100) // 50 + 50 = 100
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->putStock($sku, 50);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch1 = $this->repository->find($batch1->getId());
+        $this->assertNotNull($updatedBatch1);
+        $this->assertEquals(130, $updatedBatch1->getQuantity()); // 80 + 50 = 130
+        $this->assertEquals(100, $updatedBatch1->getAvailableQuantity()); // 50 + 50 = 100
     }
 
     public function testPutStockNoBatches(): void
     {
-        $sku = $this->createMockSku('SKU001');
-
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn([])
-        ;
+        $sku = $this->createSku('SKU001-PUT-NOBATCH');
 
         $this->expectException(InvalidOperationException::class);
         $this->expectExceptionMessage('未找到可入库的批次');
@@ -539,171 +396,118 @@ final class StockOperatorTest extends TestCase
 
     public function testProcessLockOperation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-PROCESS-LOCK');
         $log = $this->createStockLog($sku, 50, StockChange::LOCK);
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $batch = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-PROCESS-LOCK',
+            'quantity' => 100,
             'available_quantity' => 100,
             'locked_quantity' => 0,
         ]);
 
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
-
-        $batch->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(50) // 100 - 50
-        ;
-
-        $batch->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(50) // 0 + 50
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->process($log);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch = $this->repository->find($batch->getId());
+        $this->assertNotNull($updatedBatch);
+        $this->assertEquals(50, $updatedBatch->getAvailableQuantity()); // 100 - 50
+        $this->assertEquals(50, $updatedBatch->getLockedQuantity()); // 0 + 50
     }
 
     public function testProcessUnlockOperation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-PROCESS-UNLOCK');
         $log = $this->createStockLog($sku, 30, StockChange::UNLOCK);
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $batch = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-PROCESS-UNLOCK',
+            'quantity' => 100,
             'available_quantity' => 50,
             'locked_quantity' => 40,
         ]);
 
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
-
-        $batch->expects($this->once())
-            ->method('setLockedQuantity')
-            ->with(10) // 40 - 30
-        ;
-
-        $batch->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(80) // 50 + 30
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->process($log);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch = $this->repository->find($batch->getId());
+        $this->assertNotNull($updatedBatch);
+        $this->assertEquals(10, $updatedBatch->getLockedQuantity()); // 40 - 30
+        $this->assertEquals(80, $updatedBatch->getAvailableQuantity()); // 50 + 30
     }
 
     public function testProcessDeductOperation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-PROCESS-DEDUCT');
         $log = $this->createStockLog($sku, 40, StockChange::DEDUCT);
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $batch = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-PROCESS-DEDUCT',
             'quantity' => 100,
             'available_quantity' => 80,
         ]);
 
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
-
-        $batch->expects($this->once())
-            ->method('setQuantity')
-            ->with(60) // 100 - 40
-        ;
-
-        $batch->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(40) // 80 - 40
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->process($log);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch = $this->repository->find($batch->getId());
+        $this->assertNotNull($updatedBatch);
+        $this->assertEquals(60, $updatedBatch->getQuantity()); // 100 - 40
+        $this->assertEquals(40, $updatedBatch->getAvailableQuantity()); // 80 - 40
     }
 
     public function testProcessReturnOperation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-PROCESS-RETURN');
         $log = $this->createStockLog($sku, 25, StockChange::RETURN);
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $batch = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-PROCESS-RETURN',
             'quantity' => 75,
             'available_quantity' => 60,
         ]);
 
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
-
-        $batch->expects($this->once())
-            ->method('setQuantity')
-            ->with(100) // 75 + 25
-        ;
-
-        $batch->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(85) // 60 + 25
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->process($log);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch = $this->repository->find($batch->getId());
+        $this->assertNotNull($updatedBatch);
+        $this->assertEquals(100, $updatedBatch->getQuantity()); // 75 + 25
+        $this->assertEquals(85, $updatedBatch->getAvailableQuantity()); // 60 + 25
     }
 
     public function testProcessPutOperation(): void
     {
-        $sku = $this->createMockSku('SKU001');
+        $sku = $this->createSku('SKU001-PROCESS-PUT');
         $log = $this->createStockLog($sku, 35, StockChange::PUT);
 
-        $batch = $this->createStockBatch([
-            'sku' => $sku,
+        $batch = $this->createStockBatch($sku, [
+            'batch_no' => 'BATCH001-PROCESS-PUT',
             'quantity' => 65,
             'available_quantity' => 50,
         ]);
 
-        $this->repository->expects($this->once())
-            ->method('findBySku')
-            ->with($sku)
-            ->willReturn([$batch])
-        ;
-
-        $batch->expects($this->once())
-            ->method('setQuantity')
-            ->with(100) // 65 + 35
-        ;
-
-        $batch->expects($this->once())
-            ->method('setAvailableQuantity')
-            ->with(85) // 50 + 35
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->stockOperator->process($log);
+
+        // 验证数据库状态
+        $entityManager = self::getEntityManager();
+        $entityManager->clear();
+
+        $updatedBatch = $this->repository->find($batch->getId());
+        $this->assertNotNull($updatedBatch);
+        $this->assertEquals(100, $updatedBatch->getQuantity()); // 65 + 35
+        $this->assertEquals(85, $updatedBatch->getAvailableQuantity()); // 50 + 35
     }
 }

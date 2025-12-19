@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Model;
 
-class StockSummary
+final class StockSummary
 {
     private string $spuId;
 

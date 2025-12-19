@@ -1,33 +1,5 @@
-# stock-manage-bundle
+# stock-manage-bundle（核心库存 + 聚合入口）
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-专注于库存数量管理（Stock Management）
-
-## 安装
-
-```bash
-composer require tourze/stock-manage-bundle
-```
-
-## 使用方法
-
-```php
-<?php
-
-// 示例用法
-```
-
-## 配置
-
-在您的应用程序中添加配置。
-
-## 示例
-
-查看 examples 目录以获取完整的使用示例。
-
-## 参考文档
-
-- [文档](docs/)
-- [API 参考](docs/api.md)
-- [更新日志](CHANGELOG.md)
+`tourze/stock-manage-bundle` 只保留“核心库存 + 聚合入口”，扩展能力全部模块化可插拔；详情见 `README.md`。

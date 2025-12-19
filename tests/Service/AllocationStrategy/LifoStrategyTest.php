@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Tests\Service\AllocationStrategy;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\StockManageBundle\Entity\StockBatch;
 use Tourze\StockManageBundle\Service\AllocationStrategy\AllocationStrategyInterface;
 use Tourze\StockManageBundle\Service\AllocationStrategy\LifoStrategy;
@@ -14,13 +15,14 @@ use Tourze\StockManageBundle\Service\AllocationStrategy\LifoStrategy;
  * @internal
  */
 #[CoversClass(LifoStrategy::class)]
-class LifoStrategyTest extends TestCase
+#[RunTestsInSeparateProcesses]
+class LifoStrategyTest extends AbstractIntegrationTestCase
 {
     private LifoStrategy $strategy;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        $this->strategy = new LifoStrategy();
+        $this->strategy = self::getService(LifoStrategy::class);
     }
 
     public function testImplementsInterface(): void

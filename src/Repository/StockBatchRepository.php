@@ -14,7 +14,7 @@ use Tourze\StockManageBundle\Entity\StockBatch;
  * @extends ServiceEntityRepository<StockBatch>
  */
 #[AsRepository(entityClass: StockBatch::class)]
-class StockBatchRepository extends ServiceEntityRepository
+final class StockBatchRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -392,10 +392,10 @@ class StockBatchRepository extends ServiceEntityRepository
     {
         $conn = $this->getEntityManager()->getConnection();
 
-        $sql = 'SELECT SUM(b.available_quantity) 
-                FROM stock_batches b 
-                JOIN sku s ON b.sku_id = s.id 
-                WHERE s.id = ? 
+        $sql = 'SELECT SUM(b.available_quantity)
+                FROM stock_batches b
+                JOIN product_sku s ON b.sku_id = s.id
+                WHERE s.id = ?
                 AND b.status = "available"';
 
         $result = $conn->executeQuery($sql, [$spuId])->fetchOne();
@@ -412,6 +412,24 @@ class StockBatchRepository extends ServiceEntityRepository
     {
         $result = $this->createQueryBuilder('b')
             ->select('SUM(b.quantity)')
+            ->where('IDENTITY(b.sku) = :skuId')
+            ->andWhere('b.status = :status')
+            ->setParameter('skuId', $skuId)
+            ->setParameter('status', 'available')
+            ->getQuery()
+            ->getSingleScalarResult()
+        ;
+
+        return (int) ($result ?? 0);
+    }
+
+    /**
+     * 根据 SKU ID 获取总可用数量.
+     */
+    public function getTotalAvailableQuantityBySkuId(int $skuId): int
+    {
+        $result = $this->createQueryBuilder('b')
+            ->select('SUM(b.availableQuantity)')
             ->where('IDENTITY(b.sku) = :skuId')
             ->andWhere('b.status = :status')
             ->setParameter('skuId', $skuId)

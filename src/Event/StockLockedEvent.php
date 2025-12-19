@@ -10,7 +10,7 @@ use Tourze\StockManageBundle\Entity\StockBatch;
  * 库存锁定事件
  * 当库存被锁定时触发.
  */
-class StockLockedEvent extends AbstractStockEvent
+final class StockLockedEvent extends AbstractStockEvent
 {
     public function __construct(
         protected StockBatch $stockBatch,

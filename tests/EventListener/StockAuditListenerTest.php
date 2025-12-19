@@ -11,7 +11,7 @@ use Psr\Log\LoggerInterface;
 use Tourze\PHPUnitSymfonyKernelTest\AbstractEventSubscriberTestCase;
 use Tourze\ProductCoreBundle\Entity\Sku;
 use Tourze\StockManageBundle\Entity\StockBatch;
-use Tourze\StockManageBundle\Entity\StockReservation;
+use Tourze\StockReservationBundle\Entity\StockReservation;
 use Tourze\StockManageBundle\Enum\StockReservationType;
 use Tourze\StockManageBundle\Event\StockAdjustedEvent;
 use Tourze\StockManageBundle\Event\StockAllocatedEvent;
@@ -189,13 +189,12 @@ class StockAuditListenerTest extends AbstractEventSubscriberTestCase
         $batch->setBatchNo('BATCH008');
         $batch->setQuantity(120);
 
-        // 创建一个简单的 reservation mock
-        $reservation = $this->createMock(StockReservation::class);
-        $reservation->method('getId')->willReturn(12345);
-        $reservation->method('getQuantity')->willReturn(50);
-        $reservation->method('getType')->willReturn(StockReservationType::ORDER);
-        $reservation->method('getBusinessId')->willReturn('ORDER001');
-        $reservation->method('getExpiresTime')->willReturn(new \DateTimeImmutable('+1 hour'));
+        // 创建真实的 StockReservation 对象而不是 Mock
+        $reservation = new StockReservation();
+        $reservation->setQuantity(50);
+        $reservation->setType(StockReservationType::ORDER);
+        $reservation->setBusinessId('ORDER001');
+        $reservation->setExpiresTime(new \DateTimeImmutable('+1 hour'));
 
         $event = new StockReservedEvent($batch, $reservation, 'order_admin');
 

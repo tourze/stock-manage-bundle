@@ -6,7 +6,7 @@ namespace Tourze\StockManageBundle\Service\AllocationStrategy;
 
 use Tourze\StockManageBundle\Entity\StockBatch;
 
-class FifoStrategy implements AllocationStrategyInterface
+final class FifoStrategy implements AllocationStrategyInterface
 {
     /**
      * @param array<StockBatch> $batches

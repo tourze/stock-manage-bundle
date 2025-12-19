@@ -21,7 +21,7 @@ use Tourze\StockManageBundle\Event\StockReservedEvent;
  * 负责记录所有库存事件的审计日志.
  */
 #[WithMonologChannel(channel: 'stock_manage')]
-class StockAuditListener
+final class StockAuditListener
 {
     public function __construct(
         private LoggerInterface $logger,

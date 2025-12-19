@@ -8,7 +8,7 @@ namespace Tourze\StockManageBundle\Exception;
  * 无效状态异常
  * 当对象的状态不允许执行特定操作时抛出.
  */
-class InvalidStatusException extends AbstractStockException
+final class InvalidStatusException extends AbstractStockException
 {
     public static function create(string $status): self
     {

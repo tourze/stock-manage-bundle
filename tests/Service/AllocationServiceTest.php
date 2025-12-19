@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Tests\Service;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
 use Tourze\ProductCoreBundle\Entity\Sku;
+use Tourze\ProductCoreBundle\Entity\Spu;
 use Tourze\StockManageBundle\Entity\StockBatch;
 use Tourze\StockManageBundle\Exception\InsufficientStockException;
 use Tourze\StockManageBundle\Exception\InvalidArgumentException;
@@ -19,157 +20,178 @@ use Tourze\StockManageBundle\Service\AllocationStrategy\AllocationStrategyInterf
  * @internal
  */
 #[CoversClass(AllocationService::class)]
-class AllocationServiceTest extends TestCase
+#[RunTestsInSeparateProcesses]
+class AllocationServiceTest extends AbstractIntegrationTestCase
 {
     private AllocationService $allocationService;
 
-    private StockBatchRepository&MockObject $repository;
+    private StockBatchRepository $repository;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        parent::setUp();
-
-        $this->repository = $this->createMock(StockBatchRepository::class);
-        $this->allocationService = new AllocationService($this->repository);
+        $this->allocationService = self::getService(AllocationService::class);
+        $this->repository = self::getService(StockBatchRepository::class);
     }
 
-    private function createSku(string $skuId): Sku
+    private function createSku(string $gtin): Sku
     {
-        $sku = new Sku();
-        $sku->setGtin($skuId);
+        $entityManager = self::getEntityManager();
 
-        // 使用反射设置 ID，模拟数据库中的实体
-        // 将字符串转换为对应的整数ID
-        $numericId = crc32($skuId) & 0x7FFFFFFF; // 确保正整数
-        $reflection = new \ReflectionClass($sku);
-        $idProperty = $reflection->getProperty('id');
-        $idProperty->setAccessible(true);
-        $idProperty->setValue($sku, $numericId);
+        $spu = new Spu();
+        $spu->setTitle('Test SPU for ' . $gtin);
+        $spu->setGtin('SPU-' . $gtin);
+        $entityManager->persist($spu);
+        $entityManager->flush();
+
+        $sku = new Sku();
+        $sku->setGtin($gtin);
+        $sku->setUnit('个');
+        $sku->setSpu($spu);
+
+        $entityManager->persist($sku);
+        $entityManager->flush();
 
         return $sku;
+    }
+
+    private function createStockBatch(
+        Sku $sku,
+        string $batchNo,
+        int $quantity,
+        int $availableQuantity,
+        ?\DateTimeImmutable $productionDate = null,
+        ?\DateTimeImmutable $expiryDate = null,
+        string $status = 'available',
+    ): StockBatch {
+        $entityManager = self::getEntityManager();
+
+        $batch = new StockBatch();
+        $batch->setBatchNo($batchNo);
+        $batch->setSku($sku);
+        $batch->setQuantity($quantity);
+        $batch->setAvailableQuantity($availableQuantity);
+        $batch->setReservedQuantity(0);
+        $batch->setLockedQuantity(0);
+        $batch->setUnitCost(10.50);
+        $batch->setQualityLevel('A');
+        $batch->setLocationId('WH001');
+        $batch->setStatus($status);
+
+        if (null !== $productionDate) {
+            $batch->setProductionDate($productionDate);
+        }
+
+        if (null !== $expiryDate) {
+            $batch->setExpiryDate($expiryDate);
+        }
+
+        $entityManager->persist($batch);
+        $entityManager->flush();
+
+        return $batch;
     }
 
     public function testFifoStrategy(): void
     {
         // 测试先进先出策略
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-FIFO');
 
-        $batch1 = new StockBatch();
-        $batch1->setBatchNo('BATCH001');
-        $batch1->setQuantity(100);
-        $batch1->setAvailableQuantity(100);
-        $batch1->setProductionDate(new \DateTimeImmutable('2024-01-01'));
-        $batch1->setStatus('available');
-
-        $batch2 = new StockBatch();
-        $batch2->setBatchNo('BATCH002');
-        $batch2->setQuantity(200);
-        $batch2->setAvailableQuantity(200);
-        $batch2->setProductionDate(new \DateTimeImmutable('2024-01-02'));
-        $batch2->setStatus('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1, $batch2])
-        ;
+        $this->createStockBatch(
+            $sku,
+            'BATCH001-FIFO',
+            100,
+            100,
+            new \DateTimeImmutable('2024-01-01')
+        );
+        $this->createStockBatch(
+            $sku,
+            'BATCH002-FIFO',
+            200,
+            200,
+            new \DateTimeImmutable('2024-01-02')
+        );
 
         $result = $this->allocationService->allocate($sku, 150, 'fifo');
 
         $this->assertCount(2, $result['batches']);
         $this->assertEquals(150, $result['totalQuantity']);
         $this->assertEquals(100, $result['batches'][0]['quantity']);
-        $this->assertEquals('BATCH001', $result['batches'][0]['batchNo']);
+        $this->assertEquals('BATCH001-FIFO', $result['batches'][0]['batchNo']);
         $this->assertEquals(50, $result['batches'][1]['quantity']);
-        $this->assertEquals('BATCH002', $result['batches'][1]['batchNo']);
+        $this->assertEquals('BATCH002-FIFO', $result['batches'][1]['batchNo']);
     }
 
     public function testLifoStrategy(): void
     {
         // 测试后进先出策略
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-LIFO');
 
-        $batch1 = new StockBatch();
-        $batch1->setBatchNo('BATCH001');
-        $batch1->setQuantity(100);
-        $batch1->setAvailableQuantity(100);
-        $batch1->setProductionDate(new \DateTimeImmutable('2024-01-01'));
-        $batch1->setStatus('available');
-
-        $batch2 = new StockBatch();
-        $batch2->setBatchNo('BATCH002');
-        $batch2->setQuantity(200);
-        $batch2->setAvailableQuantity(200);
-        $batch2->setProductionDate(new \DateTimeImmutable('2024-01-02'));
-        $batch2->setStatus('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1, $batch2])
-        ;
+        $this->createStockBatch(
+            $sku,
+            'BATCH001-LIFO',
+            100,
+            100,
+            new \DateTimeImmutable('2024-01-01')
+        );
+        $this->createStockBatch(
+            $sku,
+            'BATCH002-LIFO',
+            200,
+            200,
+            new \DateTimeImmutable('2024-01-02')
+        );
 
         $result = $this->allocationService->allocate($sku, 150, 'lifo');
 
         $this->assertCount(1, $result['batches']);
         $this->assertEquals(150, $result['totalQuantity']);
         $this->assertEquals(150, $result['batches'][0]['quantity']);
-        $this->assertEquals('BATCH002', $result['batches'][0]['batchNo']);
+        $this->assertEquals('BATCH002-LIFO', $result['batches'][0]['batchNo']);
     }
 
     public function testFefoStrategy(): void
     {
         // 测试先过期先出策略
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-FEFO');
 
-        $batch1 = new StockBatch();
-        $batch1->setBatchNo('BATCH001');
-        $batch1->setQuantity(100);
-        $batch1->setAvailableQuantity(100);
-        $batch1->setExpiryDate(new \DateTimeImmutable('2024-12-01'));
-        $batch1->setStatus('available');
-
-        $batch2 = new StockBatch();
-        $batch2->setBatchNo('BATCH002');
-        $batch2->setQuantity(200);
-        $batch2->setAvailableQuantity(200);
-        $batch2->setExpiryDate(new \DateTimeImmutable('2024-11-01'));
-        $batch2->setStatus('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1, $batch2])
-        ;
+        $this->createStockBatch(
+            $sku,
+            'BATCH001-FEFO',
+            100,
+            100,
+            null,
+            new \DateTimeImmutable('2024-12-01')
+        );
+        $this->createStockBatch(
+            $sku,
+            'BATCH002-FEFO',
+            200,
+            200,
+            null,
+            new \DateTimeImmutable('2024-11-01')
+        );
 
         $result = $this->allocationService->allocate($sku, 150, 'fefo');
 
         $this->assertCount(1, $result['batches']);
         $this->assertEquals(150, $result['totalQuantity']);
         $this->assertEquals(150, $result['batches'][0]['quantity']);
-        $this->assertEquals('BATCH002', $result['batches'][0]['batchNo']);
+        $this->assertEquals('BATCH002-FEFO', $result['batches'][0]['batchNo']);
     }
 
     public function testInsufficientStock(): void
     {
         // 测试库存不足
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-INSUFFICIENT');
 
-        $batch1 = new StockBatch();
-        $batch1->setQuantity(100);
-        $batch1->setAvailableQuantity(100);
-        $batch1->setStatus('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1])
-        ;
+        $this->createStockBatch($sku, 'BATCH001-INSUFFICIENT', 100, 100);
 
         $this->expectException(InsufficientStockException::class);
-        // 期望异常消息包含实际的数字ID
-        $expectedId = crc32('SPU001') & 0x7FFFFFFF;
-        $this->expectExceptionMessage("Insufficient stock for SKU {$expectedId}: required 200, available 100");
+        $expectedMessage = sprintf(
+            'Insufficient stock for SKU %d: required 200, available 100',
+            $sku->getId()
+        );
+        $this->expectExceptionMessage($expectedMessage);
 
         $this->allocationService->allocate($sku, 200, 'fifo');
     }
@@ -177,13 +199,7 @@ class AllocationServiceTest extends TestCase
     public function testNoAvailableBatches(): void
     {
         // 测试没有可用批次
-        $sku = $this->createSku('SPU001');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([])
-        ;
+        $sku = $this->createSku('SPU001-NOBATCH');
 
         $this->expectException(InsufficientStockException::class);
         $this->expectExceptionMessage('没有可用的库存批次');
@@ -194,32 +210,21 @@ class AllocationServiceTest extends TestCase
     public function testInvalidStrategy(): void
     {
         // 测试无效策略
+        $sku = $this->createSku('SPU001-INVALID');
+
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('不支持的分配策略: invalid');
 
-        $this->allocationService->allocate($this->createSku('SPU001'), 100, 'invalid');
+        $this->allocationService->allocate($sku, 100, 'invalid');
     }
 
     public function testAllocate(): void
     {
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-ALLOCATE');
         $quantity = 100;
         $strategy = 'fifo';
 
-        $batch1 = new StockBatch();
-        $batch1->setBatchNo('BATCH001');
-        $batch1->setQuantity(150);
-        $batch1->setAvailableQuantity(150);
-        $batch1->setUnitCost(10.50);
-        $batch1->setQualityLevel('A');
-        $batch1->setLocationId('WH001');
-        $batch1->setStatus('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1])
-        ;
+        $this->createStockBatch($sku, 'BATCH001-ALLOCATE', 150, 150);
 
         $result = $this->allocationService->allocate($sku, $quantity, $strategy);
 
@@ -231,33 +236,25 @@ class AllocationServiceTest extends TestCase
         $this->assertEquals($quantity, $result['totalQuantity']);
         $this->assertEquals($strategy, $result['strategy']);
         $this->assertCount(1, $result['batches']);
-        $this->assertEquals('BATCH001', $result['batches'][0]['batchNo']);
+        $this->assertEquals('BATCH001-ALLOCATE', $result['batches'][0]['batchNo']);
         $this->assertEquals($quantity, $result['batches'][0]['quantity']);
     }
 
     public function testCalculateAllocation(): void
     {
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-CALC');
         $quantity = 100;
         $strategy = 'fifo';
         $criteria = ['location' => 'WH001'];
 
-        $batch1 = $this->createMock(StockBatch::class);
-        $batch1->method('getId')->willReturn(1);
-        $batch1->method('getBatchNo')->willReturn('BATCH001');
-        $batch1->method('getQuantity')->willReturn(150);
-        $batch1->method('getAvailableQuantity')->willReturn(150);
-        $batch1->method('getUnitCost')->willReturn(10.50);
-        $batch1->method('getQualityLevel')->willReturn('A');
-        $batch1->method('getLocationId')->willReturn('WH001');
-        $batch1->method('getExpiryDate')->willReturn(new \DateTimeImmutable('2024-12-31'));
-        $batch1->method('getStatus')->willReturn('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1])
-        ;
+        $batch = $this->createStockBatch(
+            $sku,
+            'BATCH001-CALC',
+            150,
+            150,
+            null,
+            new \DateTimeImmutable('2024-12-31')
+        );
 
         $result = $this->allocationService->calculateAllocation($sku, $quantity, $strategy, $criteria);
 
@@ -271,16 +268,25 @@ class AllocationServiceTest extends TestCase
         $this->assertEquals($quantity, $result['allocatedQuantity']);
         $this->assertEquals($strategy, $result['strategy']);
         $this->assertCount(1, $result['batches']);
-        $this->assertEquals(1, $result['batches'][0]['batchId']);
-        $this->assertEquals('BATCH001', $result['batches'][0]['batchNo']);
+        $this->assertEquals($batch->getId(), $result['batches'][0]['batchId']);
+        $this->assertEquals('BATCH001-CALC', $result['batches'][0]['batchNo']);
         $this->assertEquals($quantity, $result['batches'][0]['quantity']);
         $this->assertEquals('2024-12-31 00:00:00', $result['batches'][0]['expiryDate']);
     }
 
     public function testRegisterStrategy(): void
     {
-        $customStrategy = $this->createMock(AllocationStrategyInterface::class);
-        $customStrategy->method('getName')->willReturn('custom');
+        $customStrategy = new class implements AllocationStrategyInterface {
+            public function getName(): string
+            {
+                return 'custom';
+            }
+
+            public function sortBatches(array $batches): array
+            {
+                return $batches;
+            }
+        };
 
         $this->allocationService->registerStrategy($customStrategy);
 
@@ -300,42 +306,29 @@ class AllocationServiceTest extends TestCase
 
     public function testAllocateWithZeroQuantity(): void
     {
+        $sku = $this->createSku('SPU001-ZERO');
+
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('分配数量必须大于0');
 
-        $this->allocationService->allocate($this->createSku('SPU001'), 0, 'fifo');
+        $this->allocationService->allocate($sku, 0, 'fifo');
     }
 
     public function testCalculateAllocationWithZeroQuantity(): void
     {
+        $sku = $this->createSku('SPU001-ZERO-CALC');
+
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('分配数量必须大于0');
 
-        $this->allocationService->calculateAllocation($this->createSku('SPU001'), 0, 'fifo');
+        $this->allocationService->calculateAllocation($sku, 0, 'fifo');
     }
 
     public function testCalculateAllocationInsufficientStock(): void
     {
-        $sku = $this->createSku('SPU001');
+        $sku = $this->createSku('SPU001-CALC-INSUFFICIENT');
 
-        $batch1 = new StockBatch();
-        // 使用反射设置ID，因为它是由Doctrine管理的
-        $reflection = new \ReflectionClass($batch1);
-        $idProperty = $reflection->getProperty('id');
-        $idProperty->setValue($batch1, 1);
-        $batch1->setBatchNo('BATCH001');
-        $batch1->setQuantity(50);
-        $batch1->setAvailableQuantity(50);
-        $batch1->setUnitCost(10.0);
-        $batch1->setQualityLevel('A');
-        $batch1->setLocationId('WH001');
-        $batch1->setStatus('available');
-
-        $this->repository->expects($this->once())
-            ->method('findAvailableBySku')
-            ->with($sku)
-            ->willReturn([$batch1])
-        ;
+        $this->createStockBatch($sku, 'BATCH001-CALC-INSUFFICIENT', 50, 50);
 
         $this->expectException(InsufficientStockException::class);
 

@@ -1,4 +1,4 @@
-# Stock Management Bundle
+# Stock Manage Bundle
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -6,44 +6,37 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PHP Version](https://img.shields.io/badge/php-%5E8.2-blue.svg)](https://php.net)
 
-一个专注于库存数量管理的 Symfony Bundle，提供完整的库存操作、预占、调拨、预警等功能。
+`tourze/stock-manage-bundle` 只保留“核心库存 + 聚合入口”：
 
-## ✨ 特性
+- 核心库存：批次、库存日志、虚拟库存、分配策略、基础查询
+- 聚合入口：检测到对应模块已安装时自动启用各 `stock-*` 扩展 Bundle（可插拔）
 
-### 🎯 核心功能
-- **库存批次管理** - 支持批次创建、合并、拆分
-- **库存调整** - 支持盘点、报损、报溢等调整类型
-- **库存预占** - 支持订单预占和自动过期清理
-- **入库出库** - 完整的入库出库流程管理
-- **库存日志** - 完整的库存变动追踪
-- **库存预警** - 低库存、超库存等多级预警
-- **库存快照** - 定期库存快照和趋势分析
-- **多种分配策略** - 支持 FIFO/LIFO/FEFO 等库存分配策略
-- **虚拟库存** - 支持虚拟库存和组合商品库存
-- **库存锁定** - 业务锁定和操作锁定机制
+## 核心内容
 
-### 🎨 管理界面
-- **EasyAdmin 集成** - 完整的后台管理界面
-- **向导式操作** - 入库出库向导流程
-- **可视化仪表板** - 库存概览和关键指标展示
-- **多维度查询** - 按SKU、批次、仓库等维度查询
+- 核心实体：`Tourze\StockManageBundle\Entity\StockBatch` / `StockLog` / `VirtualStock`
+- 核心服务：`Tourze\StockManageBundle\Service\StockServiceInterface`、`BatchQueryServiceInterface`
+- 分配策略：FIFO/LIFO/FEFO（见 `Tourze\StockManageBundle\Service\AllocationStrategy\*`）
 
-### 🔧 技术特性
-- **事件驱动** - 完整的事件系统支持扩展
-- **异步处理** - 支持队列异步处理库存操作
-- **事务安全** - 确保库存操作的事务一致性
-- **高性能** - 批量操作和缓存优化
-- **可扩展** - 策略模式支持自定义分配算法
+## 扩展模块（按需安装）
 
-## 📦 安装
+- 入库：`tourze/stock-inbound-bundle`
+- 出库：`tourze/stock-outbound-bundle`
+- 预占：`tourze/stock-reservation-bundle`
+- 调拨：`tourze/stock-transfer-bundle`
+- 组合商品库存（`BundleItem` / `BundleStock`）：`tourze/stock-bundle-bundle`
+- 库存调整：`tourze/stock-adjustment-bundle`
+- 库存锁定：`tourze/stock-lock-bundle`
+- 预警：`tourze/stock-alert-bundle`
+- 快照：`tourze/stock-snapshot-bundle`
+- 成本：`tourze/stock-cost-bundle`
 
-使用 Composer 安装：
+## 安装
 
 ```bash
 composer require tourze/stock-manage-bundle
 ```
 
-在 `config/bundles.php` 中注册 Bundle：
+在 `config/bundles.php` 中注册：
 
 ```php
 return [
@@ -52,589 +45,26 @@ return [
 ];
 ```
 
-## 🚀 快速开始
+如果项目启用了 `tourze/bundle-dependency`，在安装上述扩展 Bundle 后会被自动启用（见 `Tourze\StockManageBundle\StockManageBundle::getBundleDependencies()`）。
 
-### 基础配置
+## 使用建议
 
-在 `config/packages/stock_manage.yaml` 中配置：
+- 业务侧优先注入接口：`InboundServiceInterface` / `OutboundServiceInterface` / `ReservationServiceInterface`
+- 实现与服务别名由各自扩展 Bundle 提供；未安装模块时不要注入对应接口
 
-```yaml
-stock_manage:
-    default_allocation_strategy: 'fifo'  # 默认分配策略
-    reservation_expire_minutes: 30       # 预占过期时间（分钟）
-    enable_negative_stock: false         # 是否允许负库存
-    alert_thresholds:                    # 预警阈值配置
-        low_stock: 10
-        out_of_stock: 0
-```
-
-### 创建库存批次
+## 快速开始（核心库存）
 
 ```php
-use Tourze\StockManageBundle\Service\StockService;
 use Tourze\ProductServiceContracts\SKU;
+use Tourze\StockManageBundle\Service\StockServiceInterface;
 
-$stockService = $container->get(StockService::class);
+$stockService = $container->get(StockServiceInterface::class);
 
 $sku = new SKU('PROD001');
 $batch = $stockService->createBatch([
     'sku' => $sku,
     'batch_no' => 'BATCH20240101001',
     'quantity' => 100,
-    'unit_cost' => 50.00,
-    'production_date' => new DateTime('2024-01-01'),
-    'expiry_date' => new DateTime('2024-12-31'),
-    'location_id' => 'WH01',
-    'quality_level' => 'A'
 ]);
 ```
 
-### 检查库存可用性
-
-```php
-$sku = new SKU('PROD001');
-$available = $stockService->checkStockAvailability($sku, 10);
-
-if ($available) {
-    $stockSummary = $stockService->getAvailableStock($sku);
-    echo "可用库存: " . $stockSummary->getTotalQuantity();
-}
-```
-
-### 库存预占
-
-```php
-use Tourze\StockManageBundle\Service\ReservationService;
-
-$reservationService = $container->get(ReservationService::class);
-
-$sku = new SKU('PROD001');
-$reservation = $reservationService->reserve(
-    $sku,
-    10,
-    new DateTime('+30 minutes'),
-    'ORDER123'
-);
-
-// 确认预占
-$reservationService->confirm($reservation);
-
-// 取消预占
-$reservationService->cancel($reservation);
-```
-
-### 库存调整
-
-```php
-use Tourze\StockManageBundle\Enum\StockAdjustmentType;
-
-$adjustment = $adjustmentService->createAdjustment([
-    'sku' => $sku,
-    'quantity' => -5,  // 盘亏5个
-    'reason' => '库存盘点',
-    'type' => StockAdjustmentType::INVENTORY_CHECK,
-    'operator' => 'admin'
-]);
-```
-
-## 📊 数据模型
-
-### 核心实体
-
-#### StockBatch - 库存批次
-库存的核心实体，记录每个批次的详细信息：
-- `sku` - 商品SKU
-- `batchNo` - 批次号
-- `quantity` - 总数量
-- `availableQuantity` - 可用数量
-- `reservedQuantity` - 预留数量
-- `lockedQuantity` - 锁定数量
-- `unitCost` - 单位成本
-- `productionDate` - 生产日期
-- `expiryDate` - 到期日期
-- `locationId` - 仓库位置
-
-#### StockAdjustment - 库存调整
-记录库存调整操作：
-- `adjustType` - 调整类型（盘点、报损、报溢等）
-- `quantity` - 调整数量
-- `reason` - 调整原因
-- `status` - 调整状态
-- `operator` - 操作人
-
-#### StockReservation - 库存预占
-管理库存预占记录：
-- `reservationType` - 预占类型
-- `quantity` - 预占数量
-- `expireTime` - 过期时间
-- `sourceType` - 预占来源类型
-- `sourceId` - 预占来源ID
-
-#### StockInbound - 入库记录
-管理入库操作：
-- `inboundType` - 入库类型（采购、生产、退货等）
-- `quantity` - 入库数量
-- `supplier` - 供应商信息
-- `batchNo` - 关联批次号
-
-#### StockOutbound - 出库记录
-管理出库操作：
-- `outboundType` - 出库类型（销售、调拨、报损等）
-- `quantity` - 出库数量
-- `targetLocation` - 目标位置
-
-### 扩展实体
-
-#### VirtualStock - 虚拟库存
-支持虚拟商品库存管理，用于组合商品或服务类商品。
-
-#### BundleStock - 组合商品库存
-管理组合商品的库存关系，支持父子商品的库存联动。
-
-#### BusinessStockLock - 业务锁定
-业务层面的库存锁定，如大订单锁定、促销锁定等。
-
-#### OperationalStockLock - 操作锁定
-操作层面的库存锁定，防止并发操作冲突。
-
-## 🔧 服务接口
-
-### 核心服务
-
-#### StockService - 库存管理服务
-```php
-interface StockServiceInterface
-{
-    public function createBatch(array $data): StockBatch;
-    public function getAvailableStock(SKU $sku, array $criteria = []): StockSummary;
-    public function checkStockAvailability(SKU $sku, int $quantity, array $criteria = []): bool;
-    public function mergeBatches(array $batches, string $targetBatchNo): StockBatch;
-    public function splitBatch(StockBatch $batch, int $splitQuantity, string $newBatchNo): StockBatch;
-}
-```
-
-#### ReservationService - 预占服务
-```php
-interface ReservationServiceInterface
-{
-    public function reserve(SKU $sku, int $quantity, DateTimeInterface $expireTime, ?string $sourceId = null): StockReservation;
-    public function confirm(StockReservation $reservation): void;
-    public function cancel(StockReservation $reservation): void;
-    public function releaseExpiredReservations(): int;
-}
-```
-
-#### InboundService - 入库服务
-```php
-interface InboundServiceInterface
-{
-    public function processInbound(array $data): StockInbound;
-    public function completeInbound(StockInbound $inbound): void;
-    public function cancelInbound(StockInbound $inbound): void;
-}
-```
-
-#### OutboundService - 出库服务
-```php
-interface OutboundServiceInterface
-{
-    public function processOutbound(array $data): StockOutbound;
-    public function completeOutbound(StockOutbound $outbound): void;
-    public function cancelOutbound(StockOutbound $outbound): void;
-}
-```
-
-### 分配策略
-
-Bundle 支持多种库存分配策略：
-
-- **FifoStrategy** - 先进先出策略
-- **LifoStrategy** - 后进先出策略
-- **FefoStrategy** - 先到期先出策略
-
-自定义策略：
-```php
-use Tourze\StockManageBundle\Service\AllocationStrategy\AbstractAllocationStrategy;
-
-class CustomAllocationStrategy extends AbstractAllocationStrategy
-{
-    public function getStrategyName(): string
-    {
-        return 'custom';
-    }
-
-    public function allocate(array $batches, int $quantity, array $criteria = []): array
-    {
-        // 实现自定义分配逻辑
-        return $allocatedBatches;
-    }
-}
-```
-
-## 🎯 管理界面
-
-### EasyAdmin 后台
-
-Bundle 提供了完整的 EasyAdmin 后台管理界面：
-
-#### 库存管理
-- **库存调整** (`/admin/stock/adjustment`) - 库存调整记录管理
-- **库存预警** (`/admin/stock/alert`) - 库存预警设置和处理
-- **库存批次** (`/admin/stock/batch`) - 批次详情和管理
-- **入库管理** (`/admin/stock/inbound`) - 入库单据管理
-- **出库管理** (`/admin/stock/outbound`) - 出库单据管理
-- **库存预占** (`/admin/stock/reservation`) - 预占记录管理
-- **库存概览** (`/admin/stock/overview`) - 总体库存状态
-
-#### 向导界面
-- **采购入库向导** - 采购商品入库流程
-- **生产入库向导** - 生产完成入库流程
-- **调拨入库向导** - 仓库调拨入库流程
-- **退货入库向导** - 退货商品入库流程
-
-### 数据可视化
-- 库存趋势图表
-- 分类库存分布
-- 库存周转率分析
-- 预警状态统计
-
-## 📅 命令行工具
-
-### stock-manage:cleanup-expired-reservations
-
-清理过期的库存预占记录：
-
-```bash
-php bin/console stock-manage:cleanup-expired-reservations
-```
-
-建议设置定时任务定期执行：
-
-```bash
-# 每分钟执行一次清理
-* * * * * php /path/to/project/bin/console stock-manage:cleanup-expired-reservations
-```
-
-### stock-manage:generate-alerts
-
-生成库存预警：
-
-```bash
-php bin/console stock-manage:generate-alerts --level=low --threshold=10
-```
-
-### stock-manage:create-snapshot
-
-创建库存快照：
-
-```bash
-php bin/console stock-manage:create-snapshot --comment="月末快照"
-```
-
-## 🎭 事件系统
-
-Bundle 提供了完整的事件系统，支持业务扩展：
-
-### 库存事件
-- `StockCreatedEvent` - 库存创建事件
-- `StockAdjustedEvent` - 库存调整事件
-- `StockAllocatedEvent` - 库存分配事件
-- `StockLockedEvent` - 库存锁定事件
-- `StockReservedEvent` - 库存预占事件
-- `StockInboundEvent` - 库存入库事件
-- `StockOutboundEvent` - 库存出库事件
-
-### 事件监听器示例
-
-```php
-use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
-use Tourze\StockManageBundle\Event\StockAdjustedEvent;
-
-#[AsEventListener(event: StockAdjustedEvent::class)]
-class StockAdjustmentListener
-{
-    public function __invoke(StockAdjustedEvent $event): void
-    {
-        $adjustment = $event->getAdjustment();
-
-        // 发送通知
-        // 记录审计日志
-        // 同步到外部系统
-    }
-}
-```
-
-### 内置监听器
-- `StockAlertListener` - 库存预警监听器
-- `StockAuditListener` - 库存审计监听器
-- `StockSnapshotListener` - 库存快照监听器
-
-## 🔍 配置参考
-
-### 完整配置示例
-
-```yaml
-stock_manage:
-    # 分配策略配置
-    default_allocation_strategy: 'fifo'
-
-    # 预占配置
-    reservation:
-        expire_minutes: 30
-        auto_cleanup: true
-        cleanup_interval: 60  # 秒
-
-    # 库存配置
-    stock:
-        enable_negative: false
-        batch_auto_merge: false
-        default_location: 'DEFAULT'
-
-    # 预警配置
-    alerts:
-        enabled: true
-        thresholds:
-            low_stock: 10
-            out_of_stock: 0
-            overstock: 1000
-        notification_channels: ['email', 'webhook']
-
-    # 快照配置
-    snapshot:
-        enabled: true
-        schedule: '0 0 * * *'  # 每天0点
-        retention_days: 30
-
-    # 缓存配置
-    cache:
-        enabled: true
-        ttl: 300  # 5分钟
-        prefix: 'stock_'
-
-    # 审计配置
-    audit:
-        enabled: true
-        log_changes: true
-        include_user_info: true
-```
-
-## 🧪 测试
-
-运行测试套件：
-
-```bash
-# 运行所有测试
-./vendor/bin/phpunit packages/stock-manage-bundle/tests
-
-# 运行覆盖率测试
-./vendor/bin/phpunit --coverage-html coverage
-
-# 运行特定测试
-./vendor/bin/phpunit tests/Service/StockServiceTest.php
-```
-
-### 测试数据
-
-Bundle 提供了丰富的测试数据固件：
-
-```php
-use Tourze\StockManageBundle\DataFixtures\StockBatchFixtures;
-use Tourze\StockManageBundle\DataFixtures\StockReservationFixtures;
-
-// 加载测试数据
-$fixtures = new StockBatchFixtures();
-$fixtures->load($objectManager);
-```
-
-## 🔗 API 参考
-
-### DTO 对象
-
-#### StockCheckRequest - 库存检查请求
-```php
-$request = new StockCheckRequest(
-    sku: new SKU('PROD001'),
-    quantity: 10,
-    locationId: 'WH01',
-    excludeReserved: true
-);
-```
-
-#### StockCheckResponse - 库存检查响应
-```php
-$response = new StockCheckResponse(
-    available: true,
-    totalQuantity: 50,
-    availableQuantity: 30,
-    reservedQuantity: 20,
-    batches: $batchDetails
-);
-```
-
-### JsonRPC 方法
-
-Bundle 提供了 JsonRPC 接口支持：
-
-#### CheckStockAvailability
-```php
-// 检查库存可用性
-$available = $jsonRpcClient->call('stock.check_availability', [
-    'sku' => 'PROD001',
-    'quantity' => 10,
-    'location_id' => 'WH01'
-]);
-```
-
-#### ReserveStock
-```php
-// 预占库存
-$reservationId = $jsonRpcClient->call('stock.reserve', [
-    'sku' => 'PROD001',
-    'quantity' => 10,
-    'expire_minutes' => 30,
-    'source_id' => 'ORDER123'
-]);
-```
-
-## 🚨 异常处理
-
-### 异常类型
-
-- `InsufficientStockException` - 库存不足异常
-- `BatchNotFoundException` - 批次不存在异常
-- `DuplicateBatchException` - 重复批次异常
-- `ReservationNotFoundException` - 预占记录不存在异常
-- `ReservationExpiredException` - 预占已过期异常
-- `InvalidQuantityException` - 无效数量异常
-- `LockException` - 锁定异常
-- `TransferException` - 调拨异常
-- `InvalidArgumentException` - 参数异常
-- `InvalidOperationException` - 操作异常
-
-### 异常处理示例
-
-```php
-try {
-    $reservation = $reservationService->reserve($sku, $quantity, $expireTime);
-} catch (InsufficientStockException $e) {
-    // 处理库存不足
-    $this->logger->warning('库存不足', [
-        'sku' => $sku->getId(),
-        'requested' => $quantity,
-        'available' => $e->getAvailableQuantity()
-    ]);
-} catch (ReservationExpiredException $e) {
-    // 处理预占过期
-    $this->logger->error('预占已过期', [
-        'reservation_id' => $e->getReservationId()
-    ]);
-}
-```
-
-## 📈 性能优化
-
-### 批量操作
-
-```php
-// 批量检查库存
-$requests = [
-    new StockCheckRequest(new SKU('PROD001'), 10),
-    new StockCheckRequest(new SKU('PROD002'), 5),
-    // ...
-];
-$responses = $stockService->batchCheckAvailability($requests);
-```
-
-### 缓存策略
-
-```yaml
-# 启用查询缓存
-doctrine:
-    orm:
-        query_cache_driver:
-            type: redis
-            host: localhost
-            port: 6379
-```
-
-### 异步处理
-
-```yaml
-# 配置消息队列
-framework:
-    messenger:
-        transports:
-            stock: 'doctrine://default?queue_name=stock'
-        routing:
-            'Tourze\StockManageBundle\Message\StockOperationMessage': stock
-```
-
-## 🔒 安全考虑
-
-### 并发控制
-- 使用乐观锁防止并发修改
-- 库存锁定机制防止超卖
-- 事务保证数据一致性
-
-### 权限控制
-```yaml
-security:
-    access_control:
-        - { path: '^/admin/stock', roles: ROLE_STOCK_ADMIN }
-        - { path: '^/api/stock', roles: ROLE_API_USER }
-```
-
-### 审计日志
-所有库存操作都会记录审计日志：
-- 操作时间
-- 操作用户
-- 操作类型
-- 变更内容
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-### 开发环境设置
-
-```bash
-# 克隆仓库
-git clone https://github.com/tourze/stock-manage-bundle.git
-
-# 安装依赖
-composer install
-
-# 运行测试
-./vendor/bin/phpunit
-
-# 代码检查
-./vendor/bin/phpstan
-```
-
-### 提交规范
-
-- 遵循 PSR-12 编码规范
-- 添加单元测试
-- 更新相关文档
-- 使用语义化提交信息
-
-## 📄 许可证
-
-本项目采用 [MIT 许可证](LICENSE)。
-
-## 🙏 致谢
-
-感谢以下项目：
-- [Symfony](https://symfony.com/) - 企业级 PHP 框架
-- [Doctrine](https://www.doctrine-project.org/) - 数据库 ORM
-- [EasyAdmin](https://github.com/EasyCorp/EasyAdminBundle) - 管理后台生成器
-
-## 📞 支持
-
-- 📧 邮箱: support@tourze.com
-- 🐛 问题反馈: [GitHub Issues](https://github.com/tourze/stock-manage-bundle/issues)
-- 📖 文档: [在线文档](https://tourze.github.io/stock-manage-bundle)
-
----
-
-**注意**: 本 Bundle 需要配合 `tourze/product-core-bundle` 使用，确保已正确安装和配置相关依赖。

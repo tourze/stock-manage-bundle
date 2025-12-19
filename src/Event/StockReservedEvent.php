@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Event;
 
 use Tourze\StockManageBundle\Entity\StockBatch;
-use Tourze\StockManageBundle\Entity\StockReservation;
+use Tourze\StockReservationBundle\Entity\StockReservation;
 
 /**
  * 库存预留事件
  * 当库存被预留时触发.
  */
-class StockReservedEvent extends AbstractStockEvent
+final class StockReservedEvent extends AbstractStockEvent
 {
     public function __construct(
         protected StockBatch $stockBatch,

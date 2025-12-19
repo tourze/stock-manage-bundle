@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tourze\StockManageBundle\Exception;
 
-class BatchNotFoundException extends \RuntimeException
+final class BatchNotFoundException extends \RuntimeException
 {
     public static function withId(string $id): self
     {

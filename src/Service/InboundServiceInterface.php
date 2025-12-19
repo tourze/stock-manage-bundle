@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Service;
 
 use Tourze\ProductServiceContracts\SKU;
-use Tourze\StockManageBundle\Entity\StockInbound;
+use Tourze\StockInboundBundle\Entity\StockInbound;
 
 interface InboundServiceInterface
 {

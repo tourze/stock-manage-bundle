@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tourze\StockManageBundle\Service;
 
 use Tourze\ProductServiceContracts\SKU;
-use Tourze\StockManageBundle\Entity\StockReservation;
+use Tourze\StockReservationBundle\Entity\StockReservation;
 use Tourze\StockManageBundle\Exception\InsufficientStockException;
 use Tourze\StockManageBundle\Exception\ReservationExpiredException;
 use Tourze\StockManageBundle\Exception\ReservationNotFoundException;

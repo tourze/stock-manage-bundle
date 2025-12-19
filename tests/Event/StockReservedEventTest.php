@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use Tourze\PHPUnitSymfonyUnitTest\AbstractEventTestCase;
 use Tourze\ProductCoreBundle\Entity\Sku;
 use Tourze\StockManageBundle\Entity\StockBatch;
-use Tourze\StockManageBundle\Entity\StockReservation;
+use Tourze\StockReservationBundle\Entity\StockReservation;
 use Tourze\StockManageBundle\Enum\StockReservationType;
 use Tourze\StockManageBundle\Event\StockReservedEvent;
 

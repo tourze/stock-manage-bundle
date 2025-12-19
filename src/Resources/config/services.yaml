@@ -10,6 +10,7 @@ services:
 
   Tourze\StockManageBundle\Repository\:
     resource: '../../Repository/*'
+    public: true
 
   Tourze\StockManageBundle\EventListener\:
     resource: '../../EventListener/*'
@@ -17,37 +18,12 @@ services:
   Tourze\StockManageBundle\Controller\:
     resource: '../../Controller/*'
     tags: ['controller.service_arguments']
-
-  Tourze\StockManageBundle\Command\:
-    resource: '../../Command/*'
-    tags: ['console.command']
-
   Tourze\StockManageBundle\Procedure\:
     resource: '../../Procedure/*'
 
   # 核心服务接口声明
   Tourze\StockManageBundle\Service\StockServiceInterface:
     alias: Tourze\StockManageBundle\Service\StockService
-    public: true
-
-  Tourze\StockManageBundle\Service\ReservationServiceInterface:
-    alias: Tourze\StockManageBundle\Service\ReservationService
-    public: true
-
-  Tourze\StockManageBundle\Service\AlertServiceInterface:
-    alias: Tourze\StockManageBundle\Service\AlertService
-    public: true
-
-  Tourze\StockManageBundle\Service\InboundServiceInterface:
-    alias: Tourze\StockManageBundle\Service\InboundService
-    public: true
-
-  Tourze\StockManageBundle\Service\OutboundServiceInterface:
-    alias: Tourze\StockManageBundle\Service\OutboundService
-    public: true
-
-  Tourze\StockManageBundle\Service\SnapshotServiceInterface:
-    alias: Tourze\StockManageBundle\Service\SnapshotService
     public: true
 
   Tourze\StockManageBundle\Service\BatchQueryServiceInterface:
@@ -58,3 +34,4 @@ services:
   Tourze\StockManageBundle\Service\AllocationStrategy\:
     resource: '../../Service/AllocationStrategy/*'
     tags: ['stock_manage.allocation_strategy']
+    public: true

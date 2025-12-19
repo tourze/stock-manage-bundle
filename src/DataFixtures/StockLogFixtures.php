@@ -9,7 +9,7 @@ use Doctrine\Persistence\ObjectManager;
 use Tourze\StockManageBundle\Entity\StockLog;
 use Tourze\StockManageBundle\Enum\StockChange;
 
-class StockLogFixtures extends Fixture
+final class StockLogFixtures extends Fixture
 {
     public function load(ObjectManager $manager): void
     {

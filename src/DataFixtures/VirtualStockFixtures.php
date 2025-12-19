@@ -10,7 +10,7 @@ use Tourze\ProductServiceContracts\SkuLoaderInterface;
 use Tourze\ProductServiceContracts\SpuLoaderInterface;
 use Tourze\StockManageBundle\Entity\VirtualStock;
 
-class VirtualStockFixtures extends Fixture
+final class VirtualStockFixtures extends Fixture
 {
     public const VIRTUAL_STOCK_PREORDER = 'virtual_stock_preorder';
     public const VIRTUAL_STOCK_PRODUCTION = 'virtual_stock_production';

@@ -13,7 +13,7 @@ use Tourze\StockManageBundle\Exception\InvalidOperationException;
 /**
  * 批次管理器 - 负责批次的创建、合并、拆分等操作.
  */
-class BatchManager
+final class BatchManager
 {
     public function __construct(
         private EntityManagerInterface $entityManager,

@@ -16,7 +16,7 @@ use Tourze\StockManageBundle\Repository\StockBatchRepository;
 /**
  * 库存操作器 - 负责库存的锁定、解锁、扣减、退回等操作.
  */
-class StockOperator
+final class StockOperator
 {
     public function __construct(
         private EntityManagerInterface $entityManager,

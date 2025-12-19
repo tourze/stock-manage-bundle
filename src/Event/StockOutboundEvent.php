@@ -10,7 +10,7 @@ use Tourze\StockManageBundle\Entity\StockBatch;
  * 库存出库事件
  * 当库存出库时触发.
  */
-class StockOutboundEvent extends AbstractStockEvent
+final class StockOutboundEvent extends AbstractStockEvent
 {
     public function __construct(
         protected StockBatch $stockBatch,

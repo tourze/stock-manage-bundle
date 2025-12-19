@@ -17,7 +17,7 @@ use Tourze\StockManageBundle\Model\StockSummary;
  * 2. 消除了原本的深层嵌套和复杂条件分支
  * 3. 数据流清晰，无特殊情况处理
  */
-class StockService implements StockServiceInterface
+final class StockService implements StockServiceInterface
 {
     public function __construct(
         private BatchManager $batchManager,
